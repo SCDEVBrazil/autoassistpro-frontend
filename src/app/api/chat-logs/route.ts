@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
       sessionId: row.session_id,
       messageType: row.message_type,
       content: row.content,
-      userInfo: row.user_info || null,
+      userInfo: row.user_info ? (typeof row.user_info === 'string' ? JSON.parse(row.user_info) : row.user_info) : null,
       timestamp: row.timestamp,
       createdAt: row.created_at
     }));
