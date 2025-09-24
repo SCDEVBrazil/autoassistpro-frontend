@@ -1,9 +1,7 @@
 // src/app/api/appointments/route.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
-import { getAppointmentsData, addAppointment } from '@/lib/file-storage';
-import fs from 'fs';
-import path from 'path';
+import { getPool } from '@/lib/database';
 
 // GET - Fetch all appointments for specific client
 export async function GET(request: NextRequest) {
@@ -11,17 +9,33 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get('client') || 'techequity';
 
-    const appointmentsData = getAppointmentsData();
+    const pool = getPool();
+    const result = await pool.query(
+      'SELECT * FROM appointments WHERE client_id = $1 ORDER BY date DESC, time DESC',
+      [clientId]
+    );
 
-    // Initialize if client doesn't exist
-    if (!appointmentsData[clientId]) {
-      appointmentsData[clientId] = [];
-    }
+    // Transform database results to match existing format
+    const appointments = result.rows.map((row: any) => ({
+      id: row.id,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      email: row.email,
+      phone: row.phone || '',
+      company: row.company || '',
+      interest: row.interest || 'general',
+      date: row.date,
+      time: row.time,
+      status: row.status,
+      chatSessionId: row.chat_session_id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
 
     return NextResponse.json({
       success: true,
       client: clientId,
-      data: appointmentsData[clientId]
+      data: appointments
     });
   } catch (error) {
     console.error('Error fetching appointments:', error);
@@ -57,17 +71,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for conflicts
-    const appointmentsData = getAppointmentsData();
-    if (!appointmentsData[clientId]) {
-      appointmentsData[clientId] = [];
-    }
+    const pool = getPool();
 
-    const existingAppointment = appointmentsData[clientId].find(
-      (apt: { date: any; time: any; status: string; }) => apt.date === date && apt.time === time && apt.status !== 'cancelled'
+    // Check for conflicts
+    const conflictResult = await pool.query(
+      'SELECT id FROM appointments WHERE client_id = $1 AND date = $2 AND time = $3 AND status != $4',
+      [clientId, date, time, 'cancelled']
     );
 
-    if (existingAppointment) {
+    if (conflictResult.rows.length > 0) {
       return NextResponse.json(
         { success: false, error: 'Time slot already booked' },
         { status: 409 }
@@ -75,29 +87,51 @@ export async function POST(request: NextRequest) {
     }
 
     // Create new appointment
-    const newAppointment = {
-      id: appointmentsData[clientId].length + 1,
+    const result = await pool.query(`
+      INSERT INTO appointments (
+        client_id, first_name, last_name, email, phone, company, 
+        interest, date, time, status, chat_session_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *
+    `, [
+      clientId,
       firstName,
       lastName,
       email,
-      phone: phone || '',
-      company: company || '',
-      interest: interest || 'general',
+      phone || null,
+      company || null,
+      interest || 'general',
       date,
       time,
-      status: 'confirmed',
-      chatSessionId: chatSessionId || null, // Include chat session ID
-      createdAt: new Date().toISOString()
+      'confirmed',
+      chatSessionId || null
+    ]);
+
+    const newAppointment = result.rows[0];
+
+    // Transform to match existing format
+    const formattedAppointment = {
+      id: newAppointment.id,
+      firstName: newAppointment.first_name,
+      lastName: newAppointment.last_name,
+      email: newAppointment.email,
+      phone: newAppointment.phone || '',
+      company: newAppointment.company || '',
+      interest: newAppointment.interest || 'general',
+      date: newAppointment.date,
+      time: newAppointment.time,
+      status: newAppointment.status,
+      chatSessionId: newAppointment.chat_session_id,
+      createdAt: newAppointment.created_at
     };
 
-    // Save using file storage
-    addAppointment(clientId, newAppointment);
+    console.log('Created appointment:', formattedAppointment);
 
     return NextResponse.json({
       success: true,
       message: 'Appointment created successfully',
       client: clientId,
-      data: newAppointment
+      data: formattedAppointment
     });
   } catch (error) {
     console.error('Error creating appointment:', error);
@@ -135,20 +169,15 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const appointmentsData = getAppointmentsData();
-    
-    if (!appointmentsData[clientId]) {
-      return NextResponse.json(
-        { success: false, error: 'Client not found' },
-        { status: 404 }
-      );
-    }
+    const pool = getPool();
 
-    const appointmentIndex = appointmentsData[clientId].findIndex(
-      (apt: any) => apt.id === parseInt(id)
+    // Check if appointment exists
+    const existingResult = await pool.query(
+      'SELECT id FROM appointments WHERE id = $1 AND client_id = $2',
+      [id, clientId]
     );
 
-    if (appointmentIndex === -1) {
+    if (existingResult.rows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Appointment not found' },
         { status: 404 }
@@ -156,11 +185,12 @@ export async function PUT(request: NextRequest) {
     }
 
     // Check for conflicts with other appointments (excluding the current one)
-    const conflictingAppointment = appointmentsData[clientId].find(
-      (apt: any) => apt.id !== parseInt(id) && apt.date === date && apt.time === time && apt.status !== 'cancelled'
+    const conflictResult = await pool.query(
+      'SELECT id FROM appointments WHERE client_id = $1 AND date = $2 AND time = $3 AND id != $4 AND status != $5',
+      [clientId, date, time, id, 'cancelled']
     );
 
-    if (conflictingAppointment) {
+    if (conflictResult.rows.length > 0) {
       return NextResponse.json(
         { success: false, error: 'Time slot already booked by another appointment' },
         { status: 409 }
@@ -168,58 +198,52 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update the appointment
-    const updatedAppointment = {
-      ...appointmentsData[clientId][appointmentIndex],
+    const result = await pool.query(`
+      UPDATE appointments 
+      SET first_name = $1, last_name = $2, email = $3, phone = $4, company = $5,
+          interest = $6, date = $7, time = $8, status = $9, chat_session_id = $10,
+          updated_at = NOW()
+      WHERE id = $11 AND client_id = $12
+      RETURNING *
+    `, [
       firstName,
       lastName,
       email,
-      phone: phone || '',
-      company: company || '',
-      interest: interest || 'general',
+      phone || null,
+      company || null,
+      interest || 'general',
       date,
       time,
-      status: status || 'confirmed',
-      chatSessionId: chatSessionId || appointmentsData[clientId][appointmentIndex].chatSessionId || null,
-      updatedAt: new Date().toISOString()
+      status || 'confirmed',
+      chatSessionId || null,
+      id,
+      clientId
+    ]);
+
+    const updatedAppointment = result.rows[0];
+
+    // Transform to match existing format
+    const formattedAppointment = {
+      id: updatedAppointment.id,
+      firstName: updatedAppointment.first_name,
+      lastName: updatedAppointment.last_name,
+      email: updatedAppointment.email,
+      phone: updatedAppointment.phone || '',
+      company: updatedAppointment.company || '',
+      interest: updatedAppointment.interest || 'general',
+      date: updatedAppointment.date,
+      time: updatedAppointment.time,
+      status: updatedAppointment.status,
+      chatSessionId: updatedAppointment.chat_session_id,
+      createdAt: updatedAppointment.created_at,
+      updatedAt: updatedAppointment.updated_at
     };
-
-    appointmentsData[clientId][appointmentIndex] = updatedAppointment;
-
-    // FIXED: Use production-safe file writing with error handling
-    try {
-      const dataDir = path.join(process.cwd(), 'data');
-      const appointmentsFile = path.join(dataDir, 'appointments.json');
-      
-      // Check if directory exists and is writable
-      if (!fs.existsSync(dataDir)) {
-        try {
-          fs.mkdirSync(dataDir, { recursive: true });
-        } catch (dirError) {
-          console.error('Cannot create data directory in production:', dirError);
-          // In production, we'll log the update but won't fail the request
-          console.log('Updated appointment (in-memory only):', updatedAppointment);
-        }
-      }
-      
-      // Try to write to file, but don't fail if we can't
-      try {
-        fs.writeFileSync(appointmentsFile, JSON.stringify(appointmentsData, null, 2));
-        console.log('Successfully wrote to file system');
-      } catch (writeError) {
-        console.error('Cannot write to file system in production (expected):', writeError);
-        console.log('Update completed in memory only');
-      }
-      
-    } catch (fsError) {
-      console.error('File system operation failed:', fsError);
-      // Continue with success since the data is updated in memory
-    }
 
     return NextResponse.json({
       success: true,
       message: 'Appointment updated successfully',
       client: clientId,
-      data: updatedAppointment
+      data: formattedAppointment
     });
   } catch (error) {
     console.error('Error updating appointment:', error);
@@ -246,72 +270,35 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const appointmentsData = getAppointmentsData();
-    console.log('Current appointments data:', appointmentsData);
-    
-    if (!appointmentsData[clientId]) {
-      return NextResponse.json(
-        { success: false, error: 'Client not found' },
-        { status: 404 }
-      );
-    }
+    const pool = getPool();
 
-    const appointmentIndex = appointmentsData[clientId].findIndex(
-      (apt: any) => apt.id === parseInt(appointmentId)
+    // Check if appointment exists
+    const existingResult = await pool.query(
+      'SELECT id FROM appointments WHERE id = $1 AND client_id = $2',
+      [appointmentId, clientId]
     );
 
-    console.log('Appointment index found:', appointmentIndex);
-
-    if (appointmentIndex === -1) {
+    if (existingResult.rows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Appointment not found' },
         { status: 404 }
       );
     }
 
-    // Remove the appointment from memory
-    const deletedAppointment = appointmentsData[clientId][appointmentIndex];
-    appointmentsData[clientId].splice(appointmentIndex, 1);
-    
-    console.log('Appointment removed from memory:', deletedAppointment);
+    // Delete the appointment
+    const result = await pool.query(
+      'DELETE FROM appointments WHERE id = $1 AND client_id = $2 RETURNING id',
+      [appointmentId, clientId]
+    );
 
-    // FIXED: Production-safe file writing with comprehensive error handling
-    try {
-      const dataDir = path.join(process.cwd(), 'data');
-      const appointmentsFile = path.join(dataDir, 'appointments.json');
-      
-      console.log('Attempting to write to:', appointmentsFile);
-      
-      // Check if we're in a writable environment
-      if (!fs.existsSync(dataDir)) {
-        try {
-          fs.mkdirSync(dataDir, { recursive: true });
-          console.log('Created data directory');
-        } catch (dirError) {
-          console.error('Cannot create data directory (production limitation):', dirError);
-          // Don't fail - this is expected in production environments like Vercel
-        }
-      }
-      
-      // Attempt to write file, but don't fail the request if it doesn't work
-      try {
-        fs.writeFileSync(appointmentsFile, JSON.stringify(appointmentsData, null, 2));
-        console.log('Successfully persisted deletion to file system');
-      } catch (writeError) {
-        console.error('Cannot write to file system (production limitation):', writeError);
-        console.log('Deletion completed in memory only - this is expected in production');
-        
-        // In production, we might want to:
-        // 1. Send to external database
-        // 2. Queue for later processing  
-        // 3. Send to webhook
-        // For now, we'll just log it
-      }
-      
-    } catch (fsError) {
-      console.error('File system operations unavailable (production):', fsError);
-      // This is expected in serverless/production environments
+    if (result.rows.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Failed to delete appointment' },
+        { status: 500 }
+      );
     }
+
+    console.log(`Successfully deleted appointment ${appointmentId} for client ${clientId}`);
 
     return NextResponse.json({
       success: true,
