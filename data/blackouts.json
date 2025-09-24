@@ -1,0 +1,26 @@
+{
+  "techequity": [
+    {
+      "id": 1,
+      "date": "2024-12-25",
+      "reason": "Christmas Day"
+    },
+    {
+      "id": 2,
+      "date": "2024-12-31",
+      "reason": "New Year's Eve"
+    },
+    {
+      "id": 3,
+      "date": "2025-01-01",
+      "reason": "New Year's Day"
+    }
+  ],
+  "autoassist-demo": [
+    {
+      "id": 1,
+      "date": "2024-12-25",
+      "reason": "Christmas Day"
+    }
+  ]
+}

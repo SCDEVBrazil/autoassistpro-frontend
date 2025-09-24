@@ -1,0 +1,14 @@
+{
+  "techequity": {
+    "duration": 15,
+    "bufferTime": 15,
+    "advanceNotice": 24,
+    "maxBookingWindow": 60
+  },
+  "autoassist-demo": {
+    "duration": 30,
+    "bufferTime": 15,
+    "advanceNotice": 2,
+    "maxBookingWindow": 30
+  }
+}
