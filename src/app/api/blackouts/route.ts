@@ -1,53 +1,7 @@
 // src/app/api/blackouts/route.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-
-const DATA_DIR = path.join(process.cwd(), 'data');
-const BLACKOUTS_FILE = path.join(DATA_DIR, 'blackouts.json');
-
-// Ensure data directory exists
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-// Default blackout data structure
-const defaultBlackoutData = {
-  'techequity': [
-    { id: 1, date: '2024-12-25', reason: 'Christmas Day' },
-    { id: 2, date: '2024-12-31', reason: 'New Year\'s Eve' },
-    { id: 3, date: '2025-01-01', reason: 'New Year\'s Day' }
-  ],
-  'autoassist-demo': [
-    { id: 1, date: '2024-12-25', reason: 'Christmas Day' }
-  ]
-};
-
-// Helper function to get blackout data
-function getBlackoutData() {
-  try {
-    if (!fs.existsSync(BLACKOUTS_FILE)) {
-      fs.writeFileSync(BLACKOUTS_FILE, JSON.stringify(defaultBlackoutData, null, 2));
-      return defaultBlackoutData;
-    }
-    const data = fs.readFileSync(BLACKOUTS_FILE, 'utf8');
-    return JSON.parse(data);
-  } catch (error) {
-    console.error('Error reading blackout data:', error);
-    return defaultBlackoutData;
-  }
-}
-
-// Helper function to save blackout data
-function saveBlackoutData(data: any) {
-  try {
-    fs.writeFileSync(BLACKOUTS_FILE, JSON.stringify(data, null, 2));
-    console.log('Blackout data saved to file');
-  } catch (error) {
-    console.error('Error saving blackout data:', error);
-  }
-}
+import { getPool } from '@/lib/database';
 
 // GET - Fetch all blackout dates for specific client
 export async function GET(request: NextRequest) {
@@ -55,17 +9,28 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get('client') || 'techequity';
 
-    const blackoutData = getBlackoutData();
+    const pool = getPool();
+    
+    // Get blackout dates from database, ordered by date
+    const result = await pool.query(
+      'SELECT id, date, reason, created_at FROM blackout_dates WHERE client_id = $1 ORDER BY date ASC',
+      [clientId]
+    );
 
-    // Initialize client blackouts if doesn't exist
-    if (!blackoutData[clientId]) {
-      blackoutData[clientId] = [];
-    }
+    // Transform to match expected format
+    const blackoutDates = result.rows.map((row: any) => ({
+      id: row.id,
+      date: row.date.toISOString().split('T')[0], // Format as YYYY-MM-DD
+      reason: row.reason,
+      createdAt: row.created_at
+    }));
+
+    console.log(`Retrieved ${blackoutDates.length} blackout dates for client ${clientId}`);
 
     return NextResponse.json({
       success: true,
       client: clientId,
-      data: blackoutData[clientId]
+      data: blackoutDates
     });
   } catch (error) {
     console.error('Error fetching blackout dates:', error);
@@ -96,43 +61,45 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const blackoutData = getBlackoutData();
-
-    // Initialize client blackouts if doesn't exist
-    if (!blackoutData[clientId]) {
-      blackoutData[clientId] = [];
-    }
+    const pool = getPool();
 
     // Check if date already exists for this client
-    const existingBlackout = blackoutData[clientId].find((blackout: any) => blackout.date === date);
-    if (existingBlackout) {
+    const existingResult = await pool.query(
+      'SELECT id FROM blackout_dates WHERE client_id = $1 AND date = $2',
+      [clientId, date]
+    );
+
+    if (existingResult.rows.length > 0) {
       return NextResponse.json(
         { success: false, error: 'Blackout date already exists for this client' },
         { status: 409 }
       );
     }
 
-    // Generate new ID
-    const maxId = blackoutData[clientId].length > 0 
-      ? Math.max(...blackoutData[clientId].map((b: any) => b.id))
-      : 0;
+    // Insert new blackout date
+    const result = await pool.query(`
+      INSERT INTO blackout_dates (client_id, date, reason)
+      VALUES ($1, $2, $3)
+      RETURNING id, date, reason, created_at
+    `, [clientId, date, reason.trim()]);
 
-    const newBlackout = {
-      id: maxId + 1,
-      date,
-      reason
+    const newBlackout = result.rows[0];
+
+    // Transform to match expected format
+    const formattedBlackout = {
+      id: newBlackout.id,
+      date: newBlackout.date.toISOString().split('T')[0],
+      reason: newBlackout.reason,
+      createdAt: newBlackout.created_at
     };
 
-    blackoutData[clientId].push(newBlackout);
-    saveBlackoutData(blackoutData);
-
-    console.log('Added blackout date for', clientId, newBlackout);
+    console.log('Added blackout date:', formattedBlackout);
 
     return NextResponse.json({
       success: true,
       message: 'Blackout date added successfully',
       client: clientId,
-      data: newBlackout
+      data: formattedBlackout
     });
   } catch (error) {
     console.error('Error adding blackout date:', error);
@@ -147,47 +114,56 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const blackoutId = searchParams.get('id');
     const clientId = searchParams.get('client') || 'techequity';
 
-    if (!id) {
+    if (!blackoutId) {
       return NextResponse.json(
-        { success: false, error: 'ID is required' },
+        { success: false, error: 'Blackout ID is required' },
         { status: 400 }
       );
     }
 
-    const blackoutData = getBlackoutData();
+    const pool = getPool();
 
-    if (!blackoutData[clientId]) {
-      return NextResponse.json(
-        { success: false, error: 'Client not found' },
-        { status: 404 }
-      );
-    }
+    // Check if blackout exists for this client
+    const existingResult = await pool.query(
+      'SELECT id, date FROM blackout_dates WHERE id = $1 AND client_id = $2',
+      [blackoutId, clientId]
+    );
 
-    const blackoutIndex = blackoutData[clientId].findIndex((blackout: any) => blackout.id === parseInt(id));
-    if (blackoutIndex === -1) {
+    if (existingResult.rows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Blackout date not found' },
         { status: 404 }
       );
     }
 
-    blackoutData[clientId].splice(blackoutIndex, 1);
-    saveBlackoutData(blackoutData);
+    // Delete the blackout date
+    const deleteResult = await pool.query(
+      'DELETE FROM blackout_dates WHERE id = $1 AND client_id = $2 RETURNING id',
+      [blackoutId, clientId]
+    );
 
-    console.log('Removed blackout date for', clientId, 'ID:', id);
+    if (deleteResult.rows.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Failed to delete blackout date' },
+        { status: 500 }
+      );
+    }
+
+    console.log(`Successfully deleted blackout date ${blackoutId} for client ${clientId}`);
 
     return NextResponse.json({
       success: true,
-      message: 'Blackout date removed successfully',
-      client: clientId
+      message: 'Blackout date deleted successfully',
+      client: clientId,
+      deletedId: parseInt(blackoutId)
     });
   } catch (error) {
-    console.error('Error removing blackout date:', error);
+    console.error('Error deleting blackout date:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to remove blackout date' },
+      { success: false, error: 'Failed to delete blackout date' },
       { status: 500 }
     );
   }

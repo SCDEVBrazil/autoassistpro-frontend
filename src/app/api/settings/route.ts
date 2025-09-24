@@ -1,6 +1,6 @@
 // src/app/api/settings/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getSettingsData, updateSettings } from '@/lib/file-storage';
+import { getPool } from '@/lib/database';
 
 // GET - Fetch current settings for specific client
 export async function GET(request: NextRequest) {
@@ -8,22 +8,47 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get('client') || 'techequity';
 
-    const settingsData = getSettingsData();
+    const pool = getPool();
+    
+    // Get settings from database
+    const result = await pool.query(
+      'SELECT duration, buffer_time, advance_notice, max_booking_window FROM client_settings WHERE client_id = $1',
+      [clientId]
+    );
 
-    // Initialize default settings if client doesn't exist
-    if (!settingsData[clientId]) {
-      settingsData[clientId] = {
-        duration: 45,
+    let settings;
+    if (result.rows.length === 0) {
+      // Create default settings if they don't exist
+      const defaultSettings = {
+        duration: clientId === 'techequity' ? 45 : 30,
         bufferTime: 15,
-        advanceNotice: 24,
-        maxBookingWindow: 60
+        advanceNotice: clientId === 'techequity' ? 24 : 2,
+        maxBookingWindow: clientId === 'techequity' ? 60 : 30
+      };
+
+      await pool.query(`
+        INSERT INTO client_settings (client_id, duration, buffer_time, advance_notice, max_booking_window)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [clientId, defaultSettings.duration, defaultSettings.bufferTime, defaultSettings.advanceNotice, defaultSettings.maxBookingWindow]);
+
+      settings = defaultSettings;
+    } else {
+      // Transform database result to match expected format
+      const row = result.rows[0];
+      settings = {
+        duration: row.duration,
+        bufferTime: row.buffer_time,
+        advanceNotice: row.advance_notice,
+        maxBookingWindow: row.max_booking_window
       };
     }
+
+    console.log(`Retrieved settings for client ${clientId}:`, settings);
 
     return NextResponse.json({
       success: true,
       client: clientId,
-      data: settingsData[clientId]
+      data: settings
     });
   } catch (error) {
     console.error('Error fetching settings:', error);
@@ -47,6 +72,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate settings values
+    if (duration && (duration < 15 || duration > 240)) {
+      return NextResponse.json(
+        { success: false, error: 'Duration must be between 15 and 240 minutes' },
+        { status: 400 }
+      );
+    }
+
+    if (bufferTime && (bufferTime < 0 || bufferTime > 60)) {
+      return NextResponse.json(
+        { success: false, error: 'Buffer time must be between 0 and 60 minutes' },
+        { status: 400 }
+      );
+    }
+
+    if (advanceNotice && (advanceNotice < 0 || advanceNotice > 168)) {
+      return NextResponse.json(
+        { success: false, error: 'Advance notice must be between 0 and 168 hours' },
+        { status: 400 }
+      );
+    }
+
+    if (maxBookingWindow && (maxBookingWindow < 1 || maxBookingWindow > 365)) {
+      return NextResponse.json(
+        { success: false, error: 'Max booking window must be between 1 and 365 days' },
+        { status: 400 }
+      );
+    }
+
+    const pool = getPool();
+
+    // Prepare updated settings with defaults
     const updatedSettings = {
       duration: duration || 45,
       bufferTime: bufferTime || 15,
@@ -54,7 +111,20 @@ export async function POST(request: NextRequest) {
       maxBookingWindow: maxBookingWindow || 60
     };
 
-    updateSettings(clientId, updatedSettings);
+    // Insert or update settings
+    await pool.query(`
+      INSERT INTO client_settings (client_id, duration, buffer_time, advance_notice, max_booking_window, updated_at)
+      VALUES ($1, $2, $3, $4, $5, NOW())
+      ON CONFLICT (client_id) 
+      DO UPDATE SET 
+        duration = EXCLUDED.duration,
+        buffer_time = EXCLUDED.buffer_time,
+        advance_notice = EXCLUDED.advance_notice,
+        max_booking_window = EXCLUDED.max_booking_window,
+        updated_at = NOW()
+    `, [clientId, updatedSettings.duration, updatedSettings.bufferTime, updatedSettings.advanceNotice, updatedSettings.maxBookingWindow]);
+
+    console.log('Updated settings for', clientId, updatedSettings);
 
     return NextResponse.json({
       success: true,

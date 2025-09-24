@@ -1,67 +1,7 @@
 // src/app/api/chat-logs/route.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-
-const DATA_DIR = path.join(process.cwd(), 'data');
-const CHAT_LOGS_FILE = path.join(DATA_DIR, 'chat-logs.json');
-
-// Default chat logs data structure
-const defaultChatLogsData = {
-  'techequity': [],
-  'autoassist-demo': []
-};
-
-// Helper function to get chat logs data
-function getChatLogsData() {
-  try {
-    if (!fs.existsSync(CHAT_LOGS_FILE)) {
-      // Try to create file, but don't fail if we can't
-      try {
-        if (!fs.existsSync(DATA_DIR)) {
-          fs.mkdirSync(DATA_DIR, { recursive: true });
-        }
-        fs.writeFileSync(CHAT_LOGS_FILE, JSON.stringify(defaultChatLogsData, null, 2));
-      } catch (writeError) {
-        console.warn('Cannot create chat-logs file (production environment):', writeError);
-      }
-      return defaultChatLogsData;
-    }
-    const data = fs.readFileSync(CHAT_LOGS_FILE, 'utf8');
-    return JSON.parse(data);
-  } catch (error) {
-    console.error('Error reading chat logs data:', error);
-    return defaultChatLogsData;
-  }
-}
-
-// Helper function to save chat logs data - Production safe
-function saveChatLogsData(data: any) {
-  try {
-    // Check if we can write to filesystem
-    if (!fs.existsSync(DATA_DIR)) {
-      try {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-      } catch (dirError) {
-        console.warn('Cannot create data directory in production:', dirError);
-        return false; // Indicate write failed
-      }
-    }
-    
-    try {
-      fs.writeFileSync(CHAT_LOGS_FILE, JSON.stringify(data, null, 2));
-      console.log('Chat logs data saved to file');
-      return true; // Indicate write succeeded
-    } catch (writeError) {
-      console.warn('Cannot write chat logs in production (expected):', writeError);
-      return false; // Indicate write failed
-    }
-  } catch (error) {
-    console.error('Error saving chat logs data:', error);
-    return false;
-  }
-}
+import { getPool } from '@/lib/database';
 
 // GET - Fetch chat logs for specific client and/or session
 export async function GET(request: NextRequest) {
@@ -71,29 +11,52 @@ export async function GET(request: NextRequest) {
     const sessionId = searchParams.get('sessionId');
     const limit = parseInt(searchParams.get('limit') || '100');
 
-    const chatLogsData = getChatLogsData();
+    const pool = getPool();
+    let query = '';
+    let params: any[] = [];
 
-    // Initialize if client doesn't exist
-    if (!chatLogsData[clientId]) {
-      chatLogsData[clientId] = [];
-    }
-
-    let logs = chatLogsData[clientId];
-
-    // Filter by session if specified
     if (sessionId) {
-      logs = logs.filter((log: any) => log.sessionId === sessionId);
+      // Get specific session messages
+      query = `
+        SELECT * FROM chat_logs 
+        WHERE client_id = $1 AND session_id = $2 
+        ORDER BY timestamp ASC 
+        LIMIT $3
+      `;
+      params = [clientId, sessionId, limit];
+    } else {
+      // Get all messages for client
+      query = `
+        SELECT * FROM chat_logs 
+        WHERE client_id = $1 
+        ORDER BY timestamp DESC 
+        LIMIT $2
+      `;
+      params = [clientId, limit];
     }
 
-    // Apply limit
-    logs = logs.slice(-limit);
+    const result = await pool.query(query, params);
+
+    // Transform database results to match existing format
+    const chatLogs = result.rows.map((row: any) => ({
+      id: row.id,
+      clientId: row.client_id,
+      sessionId: row.session_id,
+      messageType: row.message_type,
+      content: row.content,
+      userInfo: row.user_info || null,
+      timestamp: row.timestamp,
+      createdAt: row.created_at
+    }));
+
+    console.log(`Retrieved ${chatLogs.length} chat logs for client ${clientId}${sessionId ? `, session ${sessionId}` : ''}`);
 
     return NextResponse.json({
       success: true,
       client: clientId,
       sessionId: sessionId || 'all',
-      count: logs.length,
-      data: logs
+      count: chatLogs.length,
+      data: chatLogs
     });
   } catch (error) {
     console.error('Error fetching chat logs:', error);
@@ -104,7 +67,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Log a new chat message - Production safe
+// POST - Log a new chat message
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -116,7 +79,12 @@ export async function POST(request: NextRequest) {
       userInfo
     } = body;
 
-    console.log('Attempting to log chat message:', { clientId, sessionId, messageType, content: content.substring(0, 50) + '...' });
+    console.log('Attempting to log chat message:', { 
+      clientId, 
+      sessionId, 
+      messageType, 
+      content: content.substring(0, 50) + '...' 
+    });
 
     // Validate required fields
     if (!clientId || !sessionId || !messageType || !content) {
@@ -126,45 +94,49 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create new chat log entry
-    const newLogEntry = {
-      id: Date.now(),
+    const pool = getPool();
+
+    // Insert new chat log entry
+    const result = await pool.query(`
+      INSERT INTO chat_logs (
+        client_id, session_id, message_type, content, user_info
+      ) VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `, [
       clientId,
       sessionId,
-      messageType, // 'user' or 'ai'
+      messageType,
       content,
-      userInfo: userInfo || null, // Optional user information
-      timestamp: new Date().toISOString(),
-      createdAt: new Date().toISOString()
+      userInfo ? JSON.stringify(userInfo) : null
+    ]);
+
+    const newLogEntry = result.rows[0];
+
+    // Transform to match existing format
+    const formattedEntry = {
+      id: newLogEntry.id,
+      clientId: newLogEntry.client_id,
+      sessionId: newLogEntry.session_id,
+      messageType: newLogEntry.message_type,
+      content: newLogEntry.content,
+      userInfo: newLogEntry.user_info,
+      timestamp: newLogEntry.timestamp,
+      createdAt: newLogEntry.created_at
     };
 
-    // Load current data and add new entry
-    const chatLogsData = getChatLogsData();
-    
-    if (!chatLogsData[clientId]) {
-      chatLogsData[clientId] = [];
-    }
-
-    chatLogsData[clientId].push(newLogEntry);
-    
-    // Try to save, but don't fail if we can't
-    const writeSuccess = saveChatLogsData(chatLogsData);
-    
-    if (writeSuccess) {
-      console.log('Chat message logged and persisted for', clientId, sessionId, messageType);
-    } else {
-      console.log('Chat message logged in memory only for', clientId, sessionId, messageType);
-    }
+    console.log('Chat message logged successfully:', {
+      id: formattedEntry.id,
+      clientId: formattedEntry.clientId,
+      sessionId: formattedEntry.sessionId,
+      messageType: formattedEntry.messageType
+    });
 
     return NextResponse.json({
       success: true,
-      message: writeSuccess 
-        ? 'Chat message logged successfully' 
-        : 'Chat message logged (in memory only - production environment)',
+      message: 'Chat message logged successfully',
       client: clientId,
       sessionId: sessionId,
-      data: newLogEntry,
-      persisted: writeSuccess
+      data: formattedEntry
     });
   } catch (error) {
     console.error('Error logging chat message:', error);
@@ -175,7 +147,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE - Delete all messages for a specific session - Production safe
+// DELETE - Delete all messages for a specific session
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -192,49 +164,39 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Load current chat logs data
-    const chatLogsData = getChatLogsData();
+    const pool = getPool();
 
-    // Initialize if client doesn't exist
-    if (!chatLogsData[clientId]) {
-      chatLogsData[clientId] = [];
-    }
+    // Check if conversation exists
+    const existingResult = await pool.query(
+      'SELECT COUNT(*) as count FROM chat_logs WHERE client_id = $1 AND session_id = $2',
+      [clientId, sessionId]
+    );
 
-    // Count messages before deletion for logging
-    const messagesBeforeDeletion = chatLogsData[clientId].length;
-    const messagesToDelete = chatLogsData[clientId].filter((log: any) => log.sessionId === sessionId);
-    
-    if (messagesToDelete.length === 0) {
+    const messageCount = parseInt(existingResult.rows[0].count);
+
+    if (messageCount === 0) {
       return NextResponse.json(
         { success: false, error: 'No conversation found with the specified session ID' },
         { status: 404 }
       );
     }
 
-    // Remove all messages with the specified session ID from memory
-    chatLogsData[clientId] = chatLogsData[clientId].filter((log: any) => log.sessionId !== sessionId);
-    
-    // Try to save updated data back to file, but don't fail if we can't
-    const writeSuccess = saveChatLogsData(chatLogsData);
+    // Delete all messages with the specified session ID
+    const deleteResult = await pool.query(
+      'DELETE FROM chat_logs WHERE client_id = $1 AND session_id = $2 RETURNING id',
+      [clientId, sessionId]
+    );
 
-    const messagesAfterDeletion = chatLogsData[clientId].length;
-    const deletedCount = messagesBeforeDeletion - messagesAfterDeletion;
+    const deletedCount = deleteResult.rows.length;
 
-    if (writeSuccess) {
-      console.log(`Deleted and persisted ${deletedCount} messages for session ${sessionId} from client ${clientId}`);
-    } else {
-      console.log(`Deleted ${deletedCount} messages from memory for session ${sessionId} from client ${clientId} (production environment)`);
-    }
+    console.log(`Successfully deleted ${deletedCount} messages for session ${sessionId} from client ${clientId}`);
 
     return NextResponse.json({
       success: true,
-      message: writeSuccess 
-        ? `Conversation deleted successfully. Removed ${deletedCount} messages.`
-        : `Conversation deleted from memory (${deletedCount} messages). Changes not persisted due to production environment.`,
+      message: `Conversation deleted successfully. Removed ${deletedCount} messages.`,
       client: clientId,
       sessionId: sessionId,
-      deletedCount: deletedCount,
-      persisted: writeSuccess
+      deletedCount: deletedCount
     });
   } catch (error) {
     console.error('Error deleting conversation:', error);

@@ -1,59 +1,9 @@
 // src/app/api/availability/check/route.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
-import { getAvailabilityData, getAppointmentsData, getSettingsData } from '@/lib/file-storage';
+import { getPool } from '@/lib/database';
 
-// Helper function to get blackout dates from the blackouts API
-async function getBlackoutDates(clientId: string): Promise<string[]> {
-  try {
-    // Import the blackouts data directly from file storage
-    const fs = require('fs');
-    const path = require('path');
-    
-    const DATA_DIR = path.join(process.cwd(), 'data');
-    const BLACKOUTS_FILE = path.join(DATA_DIR, 'blackouts.json');
-    
-    // Default blackouts data structure
-    const defaultBlackoutsData = {
-      'techequity': [
-        { id: 1, date: '2024-12-25', reason: 'Christmas Day' },
-        { id: 2, date: '2024-12-31', reason: 'New Year\'s Eve' },
-        { id: 3, date: '2025-01-01', reason: 'New Year\'s Day' }
-      ],
-      'autoassist-demo': [
-        { id: 1, date: '2024-12-25', reason: 'Christmas Day' }
-      ]
-    };
-
-    let blackoutsData;
-    try {
-      if (!fs.existsSync(BLACKOUTS_FILE)) {
-        fs.writeFileSync(BLACKOUTS_FILE, JSON.stringify(defaultBlackoutsData, null, 2));
-        blackoutsData = defaultBlackoutsData;
-      } else {
-        const data = fs.readFileSync(BLACKOUTS_FILE, 'utf8');
-        blackoutsData = JSON.parse(data);
-      }
-    } catch (error) {
-      console.error('Error reading blackouts data:', error);
-      blackoutsData = defaultBlackoutsData;
-    }
-
-    // Initialize client blackouts if doesn't exist
-    if (!blackoutsData[clientId]) {
-      blackoutsData[clientId] = [];
-    }
-
-    // Extract just the dates as strings
-    return blackoutsData[clientId].map((blackout: any) => blackout.date);
-  } catch (error) {
-    console.error('Error getting blackout dates:', error);
-    // Return default blackouts as fallback
-    return ['2024-12-25', '2024-12-31', '2025-01-01'];
-  }
-}
-
-// GET - Get available time slots for booking (client-specific)
+// GET - Get available time slots for booking (client-specific) - Database version
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -61,25 +11,67 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate') || new Date().toISOString().split('T')[0];
     const days = parseInt(searchParams.get('days') || '14');
 
-    // Get client's weekly schedule from file storage
-    const availabilityData = getAvailabilityData();
-    const weeklySchedule = availabilityData[clientId] || availabilityData['techequity'];
+    const pool = getPool();
+
+    // Get client's weekly schedule from database
+    const availabilityResult = await pool.query(
+      'SELECT day_of_week, enabled, start_time, end_time FROM availability WHERE client_id = $1',
+      [clientId]
+    );
+
+    if (availabilityResult.rows.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Client availability not found' },
+        { status: 404 }
+      );
+    }
+
+    // Transform to expected format
+    const weeklySchedule: any = {};
+    availabilityResult.rows.forEach((row: any) => {
+      weeklySchedule[row.day_of_week] = {
+        enabled: row.enabled,
+        start: row.start_time,
+        end: row.end_time
+      };
+    });
     
-    // Get client's existing appointments from file storage
-    const appointmentsData = getAppointmentsData();
-    const existingAppointments = appointmentsData[clientId] || [];
+    // Get client's existing appointments from database
+    const appointmentsResult = await pool.query(
+      'SELECT date, time FROM appointments WHERE client_id = $1 AND status != $2',
+      [clientId, 'cancelled']
+    );
+
+    const existingAppointments = appointmentsResult.rows.map((row: any) => ({
+      date: row.date,
+      time: row.time
+    }));
     
-    // Get client's settings from file storage
-    const settingsData = getSettingsData();
-    const settings = settingsData[clientId] || settingsData['techequity'] || {
+    // Get client's settings from database
+    const settingsResult = await pool.query(
+      'SELECT duration, buffer_time, advance_notice, max_booking_window FROM client_settings WHERE client_id = $1',
+      [clientId]
+    );
+
+    const settings = settingsResult.rows.length > 0 ? {
+      duration: settingsResult.rows[0].duration,
+      bufferTime: settingsResult.rows[0].buffer_time,
+      advanceNotice: settingsResult.rows[0].advance_notice,
+      maxBookingWindow: settingsResult.rows[0].max_booking_window
+    } : {
       duration: 45,
       bufferTime: 15,
       advanceNotice: 24,
       maxBookingWindow: 60
     };
 
-    // Get dynamic blackout dates from the blackouts API/file
-    const blackoutDates = await getBlackoutDates(clientId);
+    // Get blackout dates from database
+    const blackoutResult = await pool.query(
+      'SELECT date FROM blackout_dates WHERE client_id = $1',
+      [clientId]
+    );
+
+    const blackoutDates = blackoutResult.rows.map((row: any) => row.date.toISOString().split('T')[0]);
 
     console.log('Availability checker using data:', {
       clientId,
@@ -105,7 +97,7 @@ export async function GET(request: NextRequest) {
       data: {
         availableSlots,
         settings,
-        blackoutDates // Include in response for debugging
+        blackoutDates
       }
     });
   } catch (error) {
@@ -117,7 +109,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Main function to generate available slots - FIXED TIMEZONE HANDLING
+// Main function to generate available slots - Same logic as before
 function generateAvailableSlots(
   startDate: string,
   days: number,
@@ -128,7 +120,7 @@ function generateAvailableSlots(
 ) {
   const slots = [];
   
-  // FIX: Create date in local timezone to avoid UTC conversion issues
+  // Create date in local timezone to avoid UTC conversion issues
   const [year, month, day] = startDate.split('-').map(Number);
   const currentDate = new Date(year, month - 1, day); // month is 0-indexed
   
@@ -138,7 +130,7 @@ function generateAvailableSlots(
   for (let i = 0; i < days; i++) {
     const dateStr = currentDate.toISOString().split('T')[0];
     
-    // FIX: Use getDay() consistently since we're working in local timezone
+    // Use getDay() consistently since we're working in local timezone
     const dayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const dayName = dayNames[dayOfWeek];
@@ -153,7 +145,7 @@ function generateAvailableSlots(
       continue;
     }
 
-    // Skip blackout dates - NOW USING DYNAMIC BLACKOUT DATES
+    // Skip blackout dates
     if (blackoutDates.includes(dateStr)) {
       console.log(`Skipping ${dateStr} - blackout date`);
       currentDate.setDate(currentDate.getDate() + 1);
@@ -178,16 +170,9 @@ function generateAvailableSlots(
     if (daySlots.length > 0) {
       slots.push({
         date: dateStr,
-        dayName: currentDate.toLocaleDateString('en-US', { 
-          weekday: 'short', 
-          month: 'short', 
-          day: 'numeric' 
-        }),
+        dayName: dayName.charAt(0).toUpperCase() + dayName.slice(1),
         slots: daySlots
       });
-      console.log(`Added ${daySlots.length} slots for ${dateStr} (${dayName})`);
-    } else {
-      console.log(`No available slots for ${dateStr} (${dayName})`);
     }
 
     currentDate.setDate(currentDate.getDate() + 1);
@@ -196,7 +181,6 @@ function generateAvailableSlots(
   return slots;
 }
 
-// Generate time slots for a specific day
 function generateDaySlots(
   date: string,
   daySchedule: any,
@@ -204,63 +188,42 @@ function generateDaySlots(
   settings: any
 ) {
   const slots = [];
-  const startTime = parseTime(daySchedule.start);
-  const endTime = parseTime(daySchedule.end);
-  const slotDuration = settings.duration + settings.bufferTime;
-
-  // Get existing appointments for this day
-  const dayAppointments = existingAppointments
-    .filter(apt => apt.date === date)
-    .map(apt => parseTime(convertTo24Hour(apt.time)));
-
-  let currentSlot = startTime;
-  while (currentSlot + settings.duration <= endTime) {
-    const slotEndTime = currentSlot + settings.duration;
+  
+  // Parse start and end times
+  const [startHour, startMinute] = daySchedule.start.split(':').map(Number);
+  const [endHour, endMinute] = daySchedule.end.split(':').map(Number);
+  
+  const startTime = startHour * 60 + startMinute; // minutes from midnight
+  const endTime = endHour * 60 + endMinute;
+  
+  // Generate slots with buffer time
+  let currentTime = startTime;
+  
+  while (currentTime + settings.duration <= endTime) {
+    const slotHour = Math.floor(currentTime / 60);
+    const slotMinute = currentTime % 60;
+    const timeStr = `${slotHour.toString().padStart(2, '0')}:${slotMinute.toString().padStart(2, '0')}`;
     
     // Check if this slot conflicts with existing appointments
-    const hasConflict = dayAppointments.some(aptTime => {
-      return (currentSlot < aptTime + settings.duration && slotEndTime > aptTime);
-    });
-
+    const hasConflict = existingAppointments.some((apt: any) => 
+      apt.date.toISOString().split('T')[0] === date && apt.time === timeStr
+    );
+    
     if (!hasConflict) {
+      // Format for display (12-hour format)
+      const displayHour = slotHour === 0 ? 12 : slotHour > 12 ? slotHour - 12 : slotHour;
+      const ampm = slotHour >= 12 ? 'PM' : 'AM';
+      const displayTime = `${displayHour}:${slotMinute.toString().padStart(2, '0')} ${ampm}`;
+      
       slots.push({
-        time: formatTime(currentSlot),
-        value: formatTime(currentSlot)
+        time: displayTime,
+        value: timeStr
       });
     }
-
-    currentSlot += slotDuration;
+    
+    // Move to next slot (duration + buffer time)
+    currentTime += settings.duration + settings.bufferTime;
   }
-
+  
   return slots;
-}
-
-// Convert time string to minutes (e.g., "09:30" -> 570)
-function parseTime(timeStr: string): number {
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  return hours * 60 + minutes;
-}
-
-// Convert minutes to time string (e.g., 570 -> "9:30 AM")
-function formatTime(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  const period = hours >= 12 ? 'PM' : 'AM';
-  const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-  return `${displayHours}:${mins.toString().padStart(2, '0')} ${period}`;
-}
-
-// Convert 12-hour format to 24-hour format (e.g., "2:00 PM" -> "14:00")
-function convertTo24Hour(timeStr: string): string {
-  const [time, period] = timeStr.split(' ');
-  const [hours, minutes] = time.split(':');
-  let hour24 = parseInt(hours);
-  
-  if (period === 'PM' && hour24 !== 12) {
-    hour24 += 12;
-  } else if (period === 'AM' && hour24 === 12) {
-    hour24 = 0;
-  }
-  
-  return `${hour24.toString().padStart(2, '0')}:${minutes}`;
 }
