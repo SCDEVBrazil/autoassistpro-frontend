@@ -7,11 +7,6 @@ import path from 'path';
 const DATA_DIR = path.join(process.cwd(), 'data');
 const CHAT_LOGS_FILE = path.join(DATA_DIR, 'chat-logs.json');
 
-// Ensure data directory exists
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
 // Default chat logs data structure
 const defaultChatLogsData = {
   'techequity': [],
@@ -22,7 +17,15 @@ const defaultChatLogsData = {
 function getChatLogsData() {
   try {
     if (!fs.existsSync(CHAT_LOGS_FILE)) {
-      fs.writeFileSync(CHAT_LOGS_FILE, JSON.stringify(defaultChatLogsData, null, 2));
+      // Try to create file, but don't fail if we can't
+      try {
+        if (!fs.existsSync(DATA_DIR)) {
+          fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
+        fs.writeFileSync(CHAT_LOGS_FILE, JSON.stringify(defaultChatLogsData, null, 2));
+      } catch (writeError) {
+        console.warn('Cannot create chat-logs file (production environment):', writeError);
+      }
       return defaultChatLogsData;
     }
     const data = fs.readFileSync(CHAT_LOGS_FILE, 'utf8');
@@ -33,13 +36,30 @@ function getChatLogsData() {
   }
 }
 
-// Helper function to save chat logs data
+// Helper function to save chat logs data - Production safe
 function saveChatLogsData(data: any) {
   try {
-    fs.writeFileSync(CHAT_LOGS_FILE, JSON.stringify(data, null, 2));
-    console.log('Chat logs data saved to file');
+    // Check if we can write to filesystem
+    if (!fs.existsSync(DATA_DIR)) {
+      try {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      } catch (dirError) {
+        console.warn('Cannot create data directory in production:', dirError);
+        return false; // Indicate write failed
+      }
+    }
+    
+    try {
+      fs.writeFileSync(CHAT_LOGS_FILE, JSON.stringify(data, null, 2));
+      console.log('Chat logs data saved to file');
+      return true; // Indicate write succeeded
+    } catch (writeError) {
+      console.warn('Cannot write chat logs in production (expected):', writeError);
+      return false; // Indicate write failed
+    }
   } catch (error) {
     console.error('Error saving chat logs data:', error);
+    return false;
   }
 }
 
@@ -84,7 +104,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Log a new chat message
+// POST - Log a new chat message - Production safe
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -95,6 +115,8 @@ export async function POST(request: NextRequest) {
       content,
       userInfo
     } = body;
+
+    console.log('Attempting to log chat message:', { clientId, sessionId, messageType, content: content.substring(0, 50) + '...' });
 
     // Validate required fields
     if (!clientId || !sessionId || !messageType || !content) {
@@ -124,16 +146,25 @@ export async function POST(request: NextRequest) {
     }
 
     chatLogsData[clientId].push(newLogEntry);
-    saveChatLogsData(chatLogsData);
-
-    console.log('Logged chat message for', clientId, sessionId, messageType);
+    
+    // Try to save, but don't fail if we can't
+    const writeSuccess = saveChatLogsData(chatLogsData);
+    
+    if (writeSuccess) {
+      console.log('Chat message logged and persisted for', clientId, sessionId, messageType);
+    } else {
+      console.log('Chat message logged in memory only for', clientId, sessionId, messageType);
+    }
 
     return NextResponse.json({
       success: true,
-      message: 'Chat message logged successfully',
+      message: writeSuccess 
+        ? 'Chat message logged successfully' 
+        : 'Chat message logged (in memory only - production environment)',
       client: clientId,
       sessionId: sessionId,
-      data: newLogEntry
+      data: newLogEntry,
+      persisted: writeSuccess
     });
   } catch (error) {
     console.error('Error logging chat message:', error);
@@ -144,12 +175,14 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE - Delete all messages for a specific session
+// DELETE - Delete all messages for a specific session - Production safe
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get('client') || 'techequity';
     const sessionId = searchParams.get('sessionId');
+
+    console.log('DELETE chat logs request:', { clientId, sessionId });
 
     // Validate required parameters
     if (!sessionId) {
@@ -178,23 +211,30 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Remove all messages with the specified session ID
+    // Remove all messages with the specified session ID from memory
     chatLogsData[clientId] = chatLogsData[clientId].filter((log: any) => log.sessionId !== sessionId);
     
-    // Save updated data back to file
-    saveChatLogsData(chatLogsData);
+    // Try to save updated data back to file, but don't fail if we can't
+    const writeSuccess = saveChatLogsData(chatLogsData);
 
     const messagesAfterDeletion = chatLogsData[clientId].length;
     const deletedCount = messagesBeforeDeletion - messagesAfterDeletion;
 
-    console.log(`Deleted ${deletedCount} messages for session ${sessionId} from client ${clientId}`);
+    if (writeSuccess) {
+      console.log(`Deleted and persisted ${deletedCount} messages for session ${sessionId} from client ${clientId}`);
+    } else {
+      console.log(`Deleted ${deletedCount} messages from memory for session ${sessionId} from client ${clientId} (production environment)`);
+    }
 
     return NextResponse.json({
       success: true,
-      message: `Conversation deleted successfully. Removed ${deletedCount} messages.`,
+      message: writeSuccess 
+        ? `Conversation deleted successfully. Removed ${deletedCount} messages.`
+        : `Conversation deleted from memory (${deletedCount} messages). Changes not persisted due to production environment.`,
       client: clientId,
       sessionId: sessionId,
-      deletedCount: deletedCount
+      deletedCount: deletedCount,
+      persisted: writeSuccess
     });
   } catch (error) {
     console.error('Error deleting conversation:', error);
