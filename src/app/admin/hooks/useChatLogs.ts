@@ -251,6 +251,26 @@ export const useChatLogs = (setNotification: (notification: Notification | null)
     }
   }, [selectedSession, setNotification, deviceType]);
 
+  const extractUserName = (messages: ChatLog[]): string => {
+  // Look for any message in this session that has userInfo
+  const messageWithUserInfo = messages.find(msg => 
+    msg.userInfo && 
+    (msg.userInfo.userName || msg.userInfo.firstName)
+  );
+  
+  if (messageWithUserInfo && messageWithUserInfo.userInfo) {
+    if (messageWithUserInfo.userInfo.userName) {
+      return messageWithUserInfo.userInfo.userName;
+    } else if (messageWithUserInfo.userInfo.firstName) {
+      return messageWithUserInfo.userInfo.lastName 
+        ? `${messageWithUserInfo.userInfo.firstName} ${messageWithUserInfo.userInfo.lastName}`
+        : messageWithUserInfo.userInfo.firstName;
+    }
+  }
+  
+  return 'Anonymous User';
+};
+
   // Device-aware chat session processing with different complexity levels
   const processChatSessions = useCallback((logs: ChatLog[]) => {
     const sessionMap = new Map<string, {
@@ -324,7 +344,8 @@ export const useChatLogs = (setNotification: (notification: Notification | null)
         firstMessage: firstUserMessage ? firstUserMessage.content : 'Session started',
         lastActivity: session.lastActivity,
         duration: calculateSessionDuration(session.messages),
-        hasAppointment: session.hasAppointment
+        hasAppointment: session.hasAppointment,
+        userName: extractUserName(session.messages) // ADD THIS LINE
       };
     });
 
