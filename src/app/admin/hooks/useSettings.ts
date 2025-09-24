@@ -1,4 +1,5 @@
 // src/app/admin/hooks/useSettings.ts - PART 1/3
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useCallback } from 'react';
 import { AppointmentSettings, Notification } from '../types';

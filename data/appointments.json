@@ -13,20 +13,6 @@
       "status": "confirmed",
       "chatSessionId": "session_1758438434393_lioizm1mp",
       "createdAt": "2025-09-21T07:20:28.438Z"
-    },
-    {
-      "id": 2,
-      "firstName": "Lucas",
-      "lastName": "Nascimento",
-      "email": "lucas@lucas.com",
-      "phone": "(312) 312-3121",
-      "company": "Lucas Company",
-      "interest": "operations",
-      "date": "2025-09-26",
-      "time": "9:30 AM",
-      "status": "confirmed",
-      "chatSessionId": "session_1758727218216_lsd3vph9k",
-      "createdAt": "2025-09-24T15:43:55.631Z"
     }
   ],
   "autoassist-demo": []

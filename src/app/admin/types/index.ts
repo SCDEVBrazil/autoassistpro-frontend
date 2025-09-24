@@ -1,4 +1,5 @@
 // src/app/admin/types/index.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 export interface WeeklySchedule {
   monday: DaySchedule;

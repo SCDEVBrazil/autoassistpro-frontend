@@ -1,4 +1,5 @@
 // src/app/admin/hooks/useAppointments.ts - PART 1/3
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useCallback } from 'react';
 import { Appointment, EditAppointmentForm, Notification } from '../types';

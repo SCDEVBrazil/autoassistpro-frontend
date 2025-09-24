@@ -56,7 +56,7 @@ export const useAvailability = (setNotification: (notification: Notification | n
           
           if (result.success) {
             // Device-specific data processing
-            let scheduleData = result.data;
+            const scheduleData = result.data;
             
             if (deviceType === 'mobile') {
               // Mobile: Ensure time formats are consistent (already in HH:MM format)
@@ -187,7 +187,7 @@ export const useAvailability = (setNotification: (notification: Notification | n
       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
       // Prepare schedule data with device context
-      let scheduleToSave = { ...weeklySchedule };
+      const scheduleToSave = { ...weeklySchedule };
       
       if (validateTimes) {
         // Additional time validation for mobile/tablet touch input
