@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { ChatLog, ChatSession, Notification } from '../types';
 import { useDeviceDetection } from '@/hooks/useDeviceDetection';
+import { ConversationBox } from '../components/ChatLogsTab/types';
 
 export const useChatLogs = (setNotification: (notification: Notification | null) => void) => {
   const { type: deviceType, isTouchDevice } = useDeviceDetection();
@@ -320,7 +321,7 @@ export const useChatLogs = (setNotification: (notification: Notification | null)
     });
 
     // Convert to session summaries with device-specific processing
-    const sessions: ChatSession[] = Array.from(sessionMap.values()).map(session => {
+    const sessions: ConversationBox[] = Array.from(sessionMap.values()).map(session => {
       // Sort messages by timestamp
       session.messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
       
@@ -345,7 +346,8 @@ export const useChatLogs = (setNotification: (notification: Notification | null)
         lastActivity: session.lastActivity,
         duration: calculateSessionDuration(session.messages),
         hasAppointment: session.hasAppointment,
-        userName: extractUserName(session.messages) // ADD THIS LINE
+        userName: extractUserName(session.messages), // ADD THIS LINE
+        messages: session.messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
       };
     });
 
