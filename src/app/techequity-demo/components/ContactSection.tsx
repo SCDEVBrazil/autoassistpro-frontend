@@ -18,7 +18,7 @@ export const ContactSection = () => {
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold mb-4">Get Started Today</h2>
           <p className="text-lg text-gray-300 leading-relaxed">
-            Ready to transform your operations? Let's discuss how we can help.
+            Ready to transform your operations? Let&apos;s discuss how we can help.
           </p>
         </div>
         
@@ -103,7 +103,7 @@ export const ContactSection = () => {
           <h2 className="text-4xl font-bold mb-4">Get Started Today</h2>
           <p className="text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
             Ready to transform your operations and strengthen your cybersecurity? 
-            Let's discuss how TechEquity Consulting can support your goals.
+            Let&apos;s discuss how TechEquity Consulting can support your goals.
           </p>
         </div>
         
@@ -199,7 +199,7 @@ export const ContactSection = () => {
           <h2 className="text-4xl font-bold mb-4">Get Started Today</h2>
           <p className="text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
             Ready to transform your operations and strengthen your cybersecurity? 
-            Let's discuss how TechEquity Consulting can support your goals.
+            Let&apos;s discuss how TechEquity Consulting can support your goals.
           </p>
         </div>
         

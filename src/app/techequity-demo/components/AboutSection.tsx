@@ -39,7 +39,7 @@ export const AboutSection = () => {
               specializing in helping organizations overcome operational roadblocks.
             </p>
             <p className="text-base">
-              Notable work includes transforming the Suquamish Tribe's technology infrastructure 
+              Notable work includes transforming the Suquamish Tribe&apos;s technology infrastructure 
               and co-founding the Pacific Northwest Tribal Technology Group.
             </p>
           </div>

@@ -98,7 +98,7 @@ export const EditAppointmentModal = ({
             <div className="space-y-6">
               <div className="text-center mb-6">
                 <h3 className="text-2xl font-bold text-gray-800 mb-2">Personal Information</h3>
-                <p className="text-gray-600">Update the client's contact details</p>
+                <p className="text-gray-600">Update the client&apos;s contact details</p>
               </div>
 
               <div className="space-y-4">

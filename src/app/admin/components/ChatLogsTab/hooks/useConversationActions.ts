@@ -1,5 +1,5 @@
 // src/app/admin/components/ChatLogsTab/hooks/useConversationActions.ts
-
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback } from 'react';
 import { useDeviceDetection } from '@/hooks/useDeviceDetection';
 

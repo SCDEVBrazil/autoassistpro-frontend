@@ -294,7 +294,7 @@ export const ServicesSection = () => {
           <div className="relative z-10">
             <h3 className="text-3xl font-bold mb-4">Ready to Transform Your Operations?</h3>
             <p className="text-xl text-gray-300 mb-8 max-w-3xl mx-auto">
-              Let's discuss how our proven methodologies can address your specific challenges and drive measurable results.
+              Let&apos;s discuss how our proven methodologies can address your specific challenges and drive measurable results.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-8 py-4 rounded-xl text-lg font-semibold transition-all duration-300 hover:scale-105 transform shadow-lg">

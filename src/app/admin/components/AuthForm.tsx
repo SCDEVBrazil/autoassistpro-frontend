@@ -17,7 +17,13 @@ interface AuthFormProps {
 // This prevents React from creating new component instances on every render
 
 // Mobile: Full-screen login with large touch targets
-const MobileAuthForm = ({ loginForm, onLogin, onUpdateForm, touchTargetSize, fieldHeight }: any) => (
+const MobileAuthForm = ({ loginForm, onLogin, onUpdateForm, touchTargetSize, fieldHeight }: {
+  loginForm: { username: string; password: string };
+  onLogin: (e: React.FormEvent) => void;
+  onUpdateForm: (field: "username" | "password", value: string) => void;
+  touchTargetSize: string;
+  fieldHeight: string;
+}) => (
   <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-900 flex flex-col justify-center">
     <div className="px-6 py-8">
       {/* Mobile Header */}
@@ -81,7 +87,13 @@ const MobileAuthForm = ({ loginForm, onLogin, onUpdateForm, touchTargetSize, fie
 );
 
 // Tablet: Centered form with medium sizing
-const TabletAuthForm = ({ loginForm, onLogin, onUpdateForm, touchTargetSize, fieldHeight }: any) => (
+const TabletAuthForm = ({ loginForm, onLogin, onUpdateForm, touchTargetSize, fieldHeight }: {
+  loginForm: { username: string; password: string };
+  onLogin: (e: React.FormEvent) => void;
+  onUpdateForm: (field: "username" | "password", value: string) => void;
+  touchTargetSize: string;
+  fieldHeight: string;
+}) => (
   <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-900 flex items-center justify-center p-6">
     <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg">
       <div className="text-center mb-8">
@@ -138,7 +150,11 @@ const TabletAuthForm = ({ loginForm, onLogin, onUpdateForm, touchTargetSize, fie
 );
 
 // Desktop: Traditional centered form (original design)
-const DesktopAuthForm = ({ loginForm, onLogin, onUpdateForm }: any) => (
+const DesktopAuthForm = ({ loginForm, onLogin, onUpdateForm }: {
+  loginForm: { username: string; password: string };
+  onLogin: (e: React.FormEvent) => void;
+  onUpdateForm: (field: "username" | "password", value: string) => void;
+}) => (
   <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-900 flex items-center justify-center">
     <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md">
       <div className="text-center mb-6">

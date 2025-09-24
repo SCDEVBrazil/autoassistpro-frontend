@@ -1,5 +1,6 @@
 // src/app/techequity-demo/hooks/useChat.ts
 // COMPLETE FIXED VERSION WITH PROPER SESSION PERSISTENCE
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useEffect, useRef } from 'react';
 import { Message } from '../types';

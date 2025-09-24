@@ -1,4 +1,5 @@
 // src/app/api/appointments/route.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppointmentsData, addAppointment } from '@/lib/file-storage';
 import fs from 'fs';

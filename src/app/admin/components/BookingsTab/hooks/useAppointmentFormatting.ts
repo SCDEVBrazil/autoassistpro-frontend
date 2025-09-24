@@ -1,5 +1,7 @@
 // src/app/admin/components/BookingsTab/hooks/useAppointmentFormatting.ts - PART 1/3
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { useCallback } from 'react';
 import { useDeviceDetection } from '@/hooks/useDeviceDetection';
 

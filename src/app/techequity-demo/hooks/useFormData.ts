@@ -1,4 +1,5 @@
 // src/app/techequity-demo/hooks/useFormData.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState } from 'react';
 import { FormData } from '../types';

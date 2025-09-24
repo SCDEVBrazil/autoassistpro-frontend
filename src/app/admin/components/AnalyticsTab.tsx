@@ -30,7 +30,7 @@ export const AnalyticsTab = () => {
           </div>
           
           <p className="text-sm mb-4 text-orange-50 leading-relaxed">
-            You're using the <strong>Beta version</strong> of AutoAssistPro. Advanced analytics will be available in the full commercial version.
+            You&apos;re using the <strong>Beta version</strong> of AutoAssistPro. Advanced analytics will be available in the full commercial version.
           </p>
           
           <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
@@ -177,14 +177,14 @@ export const AnalyticsTab = () => {
           </div>
           
           <p className="text-base mb-4 text-orange-50 leading-relaxed">
-            You're currently using the <strong>Beta version</strong> of AutoAssistPro. Advanced analytics and reporting features 
+            You&apos;re currently using the <strong>Beta version</strong> of AutoAssistPro. Advanced analytics and reporting features 
             will be available in the full commercial version.
           </p>
           
           <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
             <p className="text-sm text-orange-100">
               <Sparkles className="w-4 h-4 inline mr-2" />
-              <strong>What's Coming:</strong> Comprehensive analytics, conversion tracking, customer journey mapping, 
+              <strong>What&apos;s Coming:</strong> Comprehensive analytics, conversion tracking, customer journey mapping, 
               and detailed reporting tools.
             </p>
           </div>
@@ -355,14 +355,14 @@ export const AnalyticsTab = () => {
           </div>
           
           <p className="text-lg mb-6 text-orange-50 leading-relaxed">
-            You're currently using the <strong>Beta version</strong> of AutoAssistPro. Advanced analytics and reporting features 
+            You&apos;re currently using the <strong>Beta version</strong> of AutoAssistPro. Advanced analytics and reporting features 
             will be available in the full commercial version after your 90-day proof-of-concept period.
           </p>
           
           <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
             <p className="text-sm text-orange-100">
               <Sparkles className="w-4 h-4 inline mr-2" />
-              <strong>What's Coming:</strong> Comprehensive analytics, conversion tracking, customer journey mapping, 
+              <strong>What&apos;s Coming:</strong> Comprehensive analytics, conversion tracking, customer journey mapping, 
               and detailed reporting tools to optimize your customer engagement strategy.
             </p>
           </div>

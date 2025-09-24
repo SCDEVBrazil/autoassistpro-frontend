@@ -1,4 +1,5 @@
 // src/app/api/availability/check/route.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 import { getAvailabilityData, getAppointmentsData, getSettingsData } from '@/lib/file-storage';
 

@@ -1,5 +1,5 @@
 // src/app/admin/components/ChatLogsTab/ChatLogsTab.tsx
-
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import { MessageSquare, Users, Search, ChevronLeft, User, Bot, Trash2, ArrowLeft } from 'lucide-react';

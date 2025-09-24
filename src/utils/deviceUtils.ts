@@ -1,4 +1,5 @@
 // src/utils/deviceUtils.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { DeviceType, BREAKPOINTS } from '@/hooks/useDeviceDetection';
 

@@ -642,7 +642,7 @@ const DesktopSchedulingModal = ({
             <X className="w-5 h-5" />
           </button>
         </div>
-        <p className="text-blue-100 mt-2">Let's find the perfect time to discuss your needs</p>
+        <p className="text-blue-100 mt-2">Let&apos;s find the perfect time to discuss your needs</p>
       </div>
 
       {/* Desktop Content - ORIGINAL STACKED LAYOUT */}
