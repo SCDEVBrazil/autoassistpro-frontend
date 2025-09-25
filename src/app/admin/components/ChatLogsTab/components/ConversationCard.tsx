@@ -26,6 +26,7 @@ export const ConversationCard = ({
   onViewAppointment,
   formatTimestamp
 }: ConversationCardProps) => {
+  console.log(`ConversationCard - Session: ${conversation.sessionId.slice(-4)}, userName: "${conversation.userName}"`);
   const { type: deviceType } = useDeviceDetection();
   const touchTargetSize = getTouchTargetSize(deviceType);
 

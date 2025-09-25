@@ -82,7 +82,7 @@ export const useChat = () => {
         }
 
         // Method 1: Try localStorage first, but validate it
-        const savedSessionId = localStorage.getItem('chat-session-id');
+        const savedSessionId = sessionStorage.getItem('chat-session-id');
         if (savedSessionId && savedSessionId.startsWith('session_')) {
           // Don't automatically restore - let handleOpenChat decide
           sessionLogger.info(`Found stored session: "${savedSessionId}" - will validate when chat opens`);
@@ -104,7 +104,6 @@ export const useChat = () => {
     if (sessionId && sessionId.startsWith('session_')) {
       try {
         // Save to multiple places for redundancy
-        localStorage.setItem('chat-session-id', sessionId);
         sessionStorage.setItem('chat-session-id', sessionId);
         
         // Update URL parameter
@@ -204,7 +203,6 @@ export const useChat = () => {
   const createNewSession = (): string => {
     // Clear any existing session data first to prevent conflicts
     try {
-      localStorage.removeItem('chat-session-id');
       sessionStorage.removeItem('chat-session-id');
       const url = new URL(window.location.href);
       url.searchParams.delete('sessionId');
@@ -296,8 +294,7 @@ export const useChat = () => {
     
     // Check if there's a stored session, but validate it exists in the backend
     try {
-      const storedSessionId = localStorage.getItem('chat-session-id') || 
-                            sessionStorage.getItem('chat-session-id');
+      const storedSessionId = sessionStorage.getItem('chat-session-id');
       
       if (storedSessionId && storedSessionId.startsWith('session_')) {
         sessionLogger.info(`Found stored session: "${storedSessionId}"`);

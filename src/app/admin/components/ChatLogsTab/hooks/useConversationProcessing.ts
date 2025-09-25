@@ -57,39 +57,21 @@ export const useConversationProcessing = (chatLogs: ChatLog[]) => {
 
   // Device-aware user name extraction with different complexity levels
   const extractUserName = useCallback((log: ChatLog): string => {
-    if (processingConfig.nameExtractionComplexity === 'simple') {
-      // Simple extraction for mobile/tablet
-      return log.userInfo?.userName || 
-             (log.userInfo?.firstName && log.userInfo?.lastName 
-               ? `${log.userInfo.firstName} ${log.userInfo.lastName}` 
-               : 'Anonymous User');
-    } else {
-      // Advanced extraction for desktop
-      if (log.userInfo?.userName) {
-        return log.userInfo.userName;
-      }
-      
-      if (log.userInfo?.firstName && log.userInfo?.lastName) {
-        return `${log.userInfo.firstName} ${log.userInfo.lastName}`;
-      }
-      
-      if (log.userInfo?.firstName) {
-        return log.userInfo.firstName;
-      }
-      
-      if (log.userInfo?.lastName) {
-        return `User ${log.userInfo.lastName}`;
-      }
-      
-      // Desktop: Try to extract name from message content as fallback
-      const nameMatch = log.content.match(/(?:my name is|i'm|i am)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)/i);
-      if (nameMatch) {
-        return nameMatch[1];
-      }
-      
-      return 'Anonymous User';
+    // Only check userInfo, never parse message content
+    if (log.userInfo?.userName) {
+      return log.userInfo.userName;
     }
-  }, [processingConfig.nameExtractionComplexity]);
+    
+    if (log.userInfo?.firstName && log.userInfo?.lastName) {
+      return `${log.userInfo.firstName} ${log.userInfo.lastName}`;
+    }
+    
+    if (log.userInfo?.firstName) {
+      return log.userInfo.firstName;
+    }
+    
+    return 'Anonymous User';
+  }, []);
 
   // Device-aware appointment detection with different sensitivity levels
   const detectAppointment = useCallback((messages: ChatLog[]): boolean => {
@@ -230,6 +212,9 @@ export const useConversationProcessing = (chatLogs: ChatLog[]) => {
       
       batch.forEach(log => {
         const currentUserName = extractUserName(log);
+        if (log.sessionId.includes('xaah')) {
+          console.log(`LEWIS DEBUG - sessionId: ${log.sessionId}, messageType: ${log.messageType}, content: "${log.content}", currentUserName: "${currentUserName}"`);
+        }
         
         if (!conversationMap.has(log.sessionId)) {
           conversationMap.set(log.sessionId, {

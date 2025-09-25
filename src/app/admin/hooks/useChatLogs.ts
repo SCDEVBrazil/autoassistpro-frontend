@@ -252,25 +252,36 @@ export const useChatLogs = (setNotification: (notification: Notification | null)
     }
   }, [selectedSession, setNotification, deviceType]);
 
-  const extractUserName = (messages: ChatLog[]): string => {
-  // Look for any message in this session that has userInfo
-  const messageWithUserInfo = messages.find(msg => 
-    msg.userInfo && 
-    (msg.userInfo.userName || msg.userInfo.firstName)
-  );
-  
-  if (messageWithUserInfo && messageWithUserInfo.userInfo) {
-    if (messageWithUserInfo.userInfo.userName) {
-      return messageWithUserInfo.userInfo.userName;
-    } else if (messageWithUserInfo.userInfo.firstName) {
-      return messageWithUserInfo.userInfo.lastName 
-        ? `${messageWithUserInfo.userInfo.firstName} ${messageWithUserInfo.userInfo.lastName}`
-        : messageWithUserInfo.userInfo.firstName;
+  const extractUserName = useCallback((log: ChatLog): string => {
+    console.log(`DEBUG extractUserName - content: "${log.content.substring(0, 30)}...", userInfo:`, log.userInfo);
+    
+    // Try userInfo first
+    if (log.userInfo?.userName) {
+      console.log(`Found userName: "${log.userInfo.userName}"`);
+      return log.userInfo.userName;
     }
-  }
-  
-  return 'Anonymous User';
-};
+    
+    if (log.userInfo?.firstName && log.userInfo?.lastName) {
+      const result = `${log.userInfo.firstName} ${log.userInfo.lastName}`;
+      console.log(`Built from firstName/lastName: "${result}"`);
+      return result;
+    }
+    
+    if (log.userInfo?.firstName) {
+      console.log(`Found only firstName: "${log.userInfo.firstName}"`);
+      return log.userInfo.firstName;
+    }
+    
+    // Fallback: extract from message content
+    const nameMatch = log.content.match(/^[A-Z][a-z]+ [A-Z][a-z]+$/);
+    if (nameMatch) {
+      console.log(`Found name in message: "${nameMatch[0]}"`);
+      return nameMatch[0];
+    }
+    
+    console.log(`No name found, returning Anonymous User`);
+    return 'Anonymous User';
+  }, []);
 
   // Device-aware chat session processing with different complexity levels
   const processChatSessions = useCallback((logs: ChatLog[]) => {
@@ -332,21 +343,22 @@ export const useChatLogs = (setNotification: (notification: Notification | null)
         // Mobile: Simple detection - first user message
         firstUserMessage = session.messages.find(msg => msg.messageType === 'user');
       } else {
-        // Tablet/Desktop: More sophisticated - skip name-only messages
-        firstUserMessage = session.messages.find(msg => 
-          msg.messageType === 'user' && 
-          !msg.content.match(/^[A-Za-z]+\s+[A-Za-z]+$/) // Not just "FirstName LastName"
-        );
+        // Tablet/Desktop: Use first user message for consistent behavior
+        firstUserMessage = session.messages.find(msg => msg.messageType === 'user');
       }
       
       return {
         sessionId: session.sessionId,
         messageCount: session.messages.length,
-        firstMessage: firstUserMessage ? firstUserMessage.content : 'Session started',
+        firstMessage: session.messages.find(msg => msg.messageType === 'user')?.content || 'Session started',
         lastActivity: session.lastActivity,
         duration: calculateSessionDuration(session.messages),
         hasAppointment: session.hasAppointment,
-        userName: extractUserName(session.messages), // ADD THIS LINE
+        userName: (() => {
+          const extractedName = extractUserName(session.messages[0] || {} as ChatLog);
+          console.log(`Session ${session.sessionId}: userName="${extractedName}", firstMessage="${session.messages.find(msg => msg.messageType === 'user')?.content?.substring(0, 50)}", messageCount=${session.messages.length}`);
+          return extractedName;
+        })(),
         messages: session.messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
       };
     });
