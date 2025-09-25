@@ -198,10 +198,10 @@ export const useScheduling = () => {
     }
   };
 
-  // Device-aware booking confirmation with different success patterns
+  // FIXED: Device-aware booking confirmation with proper date handling
   const handleBookingConfirmation = async (
     formData: FormData,
-    sessionId?: string,
+    sessionId: string,
     onSuccess?: (dayName: string, time: string, email: string) => void
   ): Promise<void> => {
     if (availableSlots.length === 0 || selectedDate < 0 || selectedTime < 0) {
@@ -224,13 +224,20 @@ export const useScheduling = () => {
       const success = await saveAppointment(selectedDateSlot, selectedTimeSlot, formData, sessionId);
       
       if (success) {
-        // Device-specific success handling
-        const dayName = new Date(selectedDateSlot.date).toLocaleDateString('en-US', { 
+        // FIX: Parse date in local timezone to avoid UTC conversion issues
+        const dateStr = selectedDateSlot.date; // e.g., "2025-10-03"
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const localDate = new Date(year, month - 1, day); // month is 0-indexed
+        
+        // Device-specific success handling with proper date formatting
+        const dayName = localDate.toLocaleDateString('en-US', { 
           weekday: 'long',
           year: 'numeric',
           month: 'long',
           day: 'numeric'
         });
+
+        console.log(`DEBUG: Original date: ${dateStr}, Formatted dayName: ${dayName}`);
 
         // Call success callback with device context
         if (onSuccess) {

@@ -15,23 +15,29 @@ export const useAppointmentFormatting = () => {
     const parts = sessionId.split('_');
     
     if (deviceType === 'mobile') {
-      // Mobile: Ultra-short format for space constraints
+      // Mobile: Show clean number only
       if (parts.length > 1) {
-        return `...${parts[1].substring(0, 4)}`;
-      }
-      return sessionId.substring(0, 4);
-    } else if (deviceType === 'tablet') {
-      // Tablet: Balanced format
-      if (parts.length > 1) {
-        return `...${parts[1].substring(0, 6)}`;
-      }
-      return sessionId.substring(0, 6);
-    } else {
-      // Desktop: Full format with more detail
-      if (parts.length > 1) {
-        return `...${parts[1].substring(0, 8)}`;
+        return parts[1].substring(0, 8);
       }
       return sessionId.substring(0, 8);
+    } else if (deviceType === 'tablet') {
+      // Tablet: Show more characters
+      if (parts.length > 1) {
+        return parts[1].substring(0, 12);
+      }
+      return sessionId.substring(0, 12);
+    } else {
+      // Desktop: Show clean number without session_ prefix and stop at second underscore
+      if (parts.length > 1) {
+        // Return only the numeric part, stop at second underscore if exists
+        const numericPart = parts[1];
+        const secondUnderscoreIndex = numericPart.indexOf('_');
+        if (secondUnderscoreIndex > 0) {
+          return numericPart.substring(0, secondUnderscoreIndex);
+        }
+        return numericPart;
+      }
+      return sessionId;
     }
   }, [deviceType]);
 
@@ -72,29 +78,56 @@ export const useAppointmentFormatting = () => {
 
   // Device-aware date formatting with different verbosity levels
   const formatDisplayDate = useCallback((dateString: string): string => {
-    const date = new Date(dateString);
+    if (!dateString) return 'TBD';
     
-    if (deviceType === 'mobile') {
-      // Mobile: Compact date format
-      return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric'
-      });
-    } else if (deviceType === 'tablet') {
-      // Tablet: Balanced date format
-      return date.toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric'
-      });
-    } else {
-      // Desktop: Full date format
-      return date.toLocaleDateString('en-US', {
-        weekday: 'short',
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
+    try {
+      // Handle both "YYYY-MM-DD" and ISO date formats
+      let date: Date;
+      
+      if (dateString.includes('T')) {
+        // ISO format like "2025-09-26T05:00:00.000Z"
+        date = new Date(dateString);
+      } else {
+        // Simple date format like "2025-09-26"
+        const [year, month, day] = dateString.split('-').map(Number);
+        if (!year || !month || !day) {
+          return 'Invalid Date';
+        }
+        date = new Date(year, month - 1, day); // month is 0-indexed
+      }
+      
+      // Validate the date
+      if (isNaN(date.getTime())) {
+        return 'Invalid Date';
+      }
+      
+      if (deviceType === 'mobile') {
+        // Mobile: Compact date format
+        return date.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        });
+      } else if (deviceType === 'tablet') {
+        // Tablet: Balanced date format
+        return date.toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        });
+      } else {
+        // Desktop: Full date format
+        return date.toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric'
+        });
+      }
+    } catch (error) {
+      console.warn('Date formatting error:', error, 'for date:', dateString);
+      return 'Invalid Date';
     }
   }, [deviceType]);
 
@@ -113,74 +146,50 @@ export const useAppointmentFormatting = () => {
   const formatDisplayTime = useCallback((timeString: string): string => {
     if (!timeString) return 'TBD';
     
-    if (deviceType === 'mobile') {
-      // Mobile: Simple 12-hour format
-      const time24 = timeString.includes(':') ? timeString : '12:00';
-      const timeDate = new Date(`2000-01-01T${time24}`);
-      return timeDate.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      });
-    } else if (deviceType === 'tablet') {
-      // Tablet: Standard 12-hour format
-      const time24 = timeString.includes(':') ? timeString : '12:00';
-      const timeDate = new Date(`2000-01-01T${time24}`);
-      return timeDate.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      });
-    } else {
-      // Desktop: 24-hour format option or detailed 12-hour
-      const time24 = timeString.includes(':') ? timeString : '12:00';
-      const timeDate = new Date(`2000-01-01T${time24}`);
-      return timeDate.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      });
+    // Handle both "10:00 AM" and "10:00" formats
+    let cleanTimeString = timeString;
+    
+    // If it already has AM/PM, parse it directly
+    if (timeString.includes('AM') || timeString.includes('PM')) {
+      const [time, period] = timeString.split(' ');
+      return `${time} ${period}`;
     }
-  }, [deviceType]);
+    
+    // If it's 24-hour format, convert it
+    const [hours, minutes] = cleanTimeString.split(':').map(Number);
+    const date = new Date(2000, 0, 1, hours, minutes);
+    
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  }, []);
 
   // Device-aware phone number formatting
   const formatPhoneNumber = useCallback((phoneString: string): string => {
     if (!phoneString) return '';
     
+    // Remove all non-digit characters
     const phoneNumber = phoneString.replace(/\D/g, '');
     
-    if (deviceType === 'mobile') {
-      // Mobile: Compact format for touch interfaces
-      if (phoneNumber.length <= 3) {
-        return phoneNumber;
-      } else if (phoneNumber.length <= 6) {
-        return `${phoneNumber.slice(0, 3)}-${phoneNumber.slice(3)}`;
-      } else {
-        return `${phoneNumber.slice(0, 3)}-${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
-      }
-    } else if (deviceType === 'tablet') {
-      // Tablet: Balanced format
-      if (phoneNumber.length <= 3) {
-        return phoneNumber;
-      } else if (phoneNumber.length <= 6) {
-        return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3)}`;
-      } else {
-        return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
-      }
+    // Format consistently across all devices
+    if (phoneNumber.length === 10) {
+      return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
+    } else if (phoneNumber.length === 11 && phoneNumber.startsWith('1')) {
+      // Handle US country code
+      return `+1 (${phoneNumber.slice(1, 4)}) ${phoneNumber.slice(4, 7)}-${phoneNumber.slice(7, 11)}`;
+    } else if (phoneNumber.length > 10) {
+      // Handle extensions
+      return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)} ext. ${phoneNumber.slice(10)}`;
+    } else if (phoneNumber.length >= 7) {
+      // Handle 7-digit numbers
+      return `${phoneNumber.slice(0, 3)}-${phoneNumber.slice(3)}`;
     } else {
-      // Desktop: Full format with extensions if needed
-      if (phoneNumber.length <= 3) {
-        return phoneNumber;
-      } else if (phoneNumber.length <= 6) {
-        return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3)}`;
-      } else if (phoneNumber.length <= 10) {
-        return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
-      } else {
-        // Handle extensions for desktop
-        return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)} x${phoneNumber.slice(10)}`;
-      }
+      // Return as-is for shorter numbers
+      return phoneNumber;
     }
-  }, [deviceType]);
+  }, []);
 
   // Device-aware name formatting
   const formatContactName = useCallback((firstName: string, lastName: string): string => {
