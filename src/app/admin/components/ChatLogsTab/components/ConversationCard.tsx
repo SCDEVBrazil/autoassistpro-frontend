@@ -7,6 +7,7 @@ import { ConversationBox } from '../types';
 import { useDeviceDetection } from '@/hooks/useDeviceDetection';
 import { ResponsiveWrapper } from '@/components/ResponsiveWrapper';
 import { getTouchTargetSize } from '@/utils/deviceUtils';
+import { formatSessionId } from '../utils/formatting';
 
 interface ConversationCardProps {
   conversation: ConversationBox;
@@ -62,7 +63,7 @@ export const ConversationCard = ({
           <div className="min-w-0 flex-1">
             <h4 className="font-semibold text-gray-100 text-sm truncate">{conversation.userName}</h4>
             <p className="text-xs text-gray-400 font-mono truncate">
-              {conversation.sessionId.split('_')[1]?.substring(0, 8)}
+              {formatSessionId(conversation.sessionId)}
             </p>
           </div>
         </div>
@@ -148,7 +149,7 @@ export const ConversationCard = ({
           <div>
             <h3 className="font-semibold text-gray-100 text-sm">{conversation.userName}</h3>
             <p className="text-xs text-gray-400 font-mono">
-              Session: {conversation.sessionId.split('_')[1]?.substring(0, 10)}
+              Session: {formatSessionId(conversation.sessionId)}
             </p>
           </div>
         </div>
@@ -242,7 +243,7 @@ export const ConversationCard = ({
           <div>
             <h3 className="font-semibold text-gray-100">{conversation.userName}</h3>
             <p className="text-xs text-gray-400 font-mono">
-              Session: {conversation.sessionId.split('_')[1]?.substring(0, 10)}
+              Session: {formatSessionId(conversation.sessionId)}
             </p>
           </div>
         </div>

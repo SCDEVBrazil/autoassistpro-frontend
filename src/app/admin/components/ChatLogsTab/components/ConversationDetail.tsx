@@ -7,6 +7,7 @@ import { ConversationBox } from '../types';
 import { useDeviceDetection } from '@/hooks/useDeviceDetection';
 import { ResponsiveWrapper } from '@/components/ResponsiveWrapper';
 import { getTouchTargetSize } from '@/utils/deviceUtils';
+import { formatSessionId } from '../utils/formatting';
 
 interface ConversationDetailProps {
   conversation: ConversationBox;
@@ -40,7 +41,7 @@ export const ConversationDetail = ({
               {conversation.userName}
             </h2>
             <p className="text-sm text-gray-400 truncate">
-              Session: {conversation.sessionId.split('_')[1]?.substring(0, 8)}
+              Session: {formatSessionId(conversation.sessionId)}
             </p>
           </div>
         </div>
@@ -128,7 +129,7 @@ export const ConversationDetail = ({
                 <Crown className="w-3 h-3" />
               </div>
               <div className="text-sm text-gray-400">
-                Session: {conversation.sessionId.split('_')[1]?.substring(0, 10)}
+                Session: {formatSessionId(conversation.sessionId)}
               </div>
             </div>
           </div>
@@ -212,7 +213,7 @@ export const ConversationDetail = ({
               <Crown className="w-3 h-3" />
             </div>
             <div className="text-sm text-gray-400">
-              Session: {conversation.sessionId.split('_')[1]?.substring(0, 10)}
+              Session: {formatSessionId(conversation.sessionId)}
             </div>
           </div>
         </div>

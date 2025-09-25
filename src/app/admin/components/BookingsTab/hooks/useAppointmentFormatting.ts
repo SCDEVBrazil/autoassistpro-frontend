@@ -14,32 +14,18 @@ export const useAppointmentFormatting = () => {
     
     const parts = sessionId.split('_');
     
-    if (deviceType === 'mobile') {
-      // Mobile: Show clean number only
-      if (parts.length > 1) {
-        return parts[1].substring(0, 8);
+    if (parts.length > 1) {
+      // Return the full numeric part for ALL devices, stop at second underscore if exists
+      const numericPart = parts[1];
+      const secondUnderscoreIndex = numericPart.indexOf('_');
+      if (secondUnderscoreIndex > 0) {
+        return numericPart.substring(0, secondUnderscoreIndex);
       }
-      return sessionId.substring(0, 8);
-    } else if (deviceType === 'tablet') {
-      // Tablet: Show more characters
-      if (parts.length > 1) {
-        return parts[1].substring(0, 12);
-      }
-      return sessionId.substring(0, 12);
-    } else {
-      // Desktop: Show clean number without session_ prefix and stop at second underscore
-      if (parts.length > 1) {
-        // Return only the numeric part, stop at second underscore if exists
-        const numericPart = parts[1];
-        const secondUnderscoreIndex = numericPart.indexOf('_');
-        if (secondUnderscoreIndex > 0) {
-          return numericPart.substring(0, secondUnderscoreIndex);
-        }
-        return numericPart;
-      }
-      return sessionId;
+      return numericPart; // Return FULL numeric part for all devices
     }
-  }, [deviceType]);
+    
+    return sessionId;
+  }, []);
 
   // Device-aware status styling with touch-optimized variants
   const getStatusStyles = useCallback((status: string): string => {

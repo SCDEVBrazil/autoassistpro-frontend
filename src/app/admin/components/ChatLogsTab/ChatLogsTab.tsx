@@ -5,6 +5,7 @@
 import { MessageSquare, Users, Search, ChevronLeft, User, Bot, Trash2, ArrowLeft } from 'lucide-react';
 import { ChatLog, ChatSession } from '../../types';
 import { useState } from 'react';
+import { formatSessionId } from './utils/formatting';
 
 // Hooks
 import { useConversationProcessing } from './hooks/useConversationProcessing';

@@ -75,36 +75,17 @@ export const useChat = () => {
     
     const initializeSession = () => {
       try {
-        // Method 1: Try localStorage first
+        // Only try to restore session if we don't already have one
+        if (sessionId && sessionId.startsWith('session_')) {
+          sessionLogger.info('Session already exists, skipping initialization');
+          return;
+        }
+
+        // Method 1: Try localStorage first, but validate it
         const savedSessionId = localStorage.getItem('chat-session-id');
         if (savedSessionId && savedSessionId.startsWith('session_')) {
-          sessionLogger.success(`Restored session from localStorage: "${savedSessionId}"`);
-          setSessionId(savedSessionId);
-          loadConversationHistory(savedSessionId);
-          return;
-        }
-        
-        // Method 2: Try sessionStorage as backup
-        const sessionStorageId = sessionStorage.getItem('chat-session-id');
-        if (sessionStorageId && sessionStorageId.startsWith('session_')) {
-          sessionLogger.success(`Restored session from sessionStorage: "${sessionStorageId}"`);
-          setSessionId(sessionStorageId);
-          // Also save to localStorage for future use
-          localStorage.setItem('chat-session-id', sessionStorageId);
-          loadConversationHistory(sessionStorageId);
-          return;
-        }
-        
-        // Method 3: Check URL parameters for session ID
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlSessionId = urlParams.get('sessionId');
-        if (urlSessionId && urlSessionId.startsWith('session_')) {
-          sessionLogger.success(`Found session in URL parameters: "${urlSessionId}"`);
-          setSessionId(urlSessionId);
-          // Save to both storages
-          localStorage.setItem('chat-session-id', urlSessionId);
-          sessionStorage.setItem('chat-session-id', urlSessionId);
-          loadConversationHistory(urlSessionId);
+          // Don't automatically restore - let handleOpenChat decide
+          sessionLogger.info(`Found stored session: "${savedSessionId}" - will validate when chat opens`);
           return;
         }
         
@@ -221,6 +202,18 @@ export const useChat = () => {
 
   // FIXED: Enhanced session creation with better persistence
   const createNewSession = (): string => {
+    // Clear any existing session data first to prevent conflicts
+    try {
+      localStorage.removeItem('chat-session-id');
+      sessionStorage.removeItem('chat-session-id');
+      const url = new URL(window.location.href);
+      url.searchParams.delete('sessionId');
+      window.history.replaceState({}, '', url.toString());
+    } catch (error) {
+      console.warn('Error clearing old session data:', error);
+    }
+
+    // Create truly unique timestamp-based session ID
     const timestamp = Date.now();
     const randomPart = Math.random().toString(36).substr(2, 9);
     const newSessionId = `session_${timestamp}_${randomPart}`;
@@ -230,7 +223,7 @@ export const useChat = () => {
     sessionLogger.info(`Timestamp: ${timestamp}`);
     sessionLogger.info(`Random part: ${randomPart}`);
     
-    // CRITICAL: Save to multiple places immediately
+    // Save to multiple places immediately
     try {
       localStorage.setItem('chat-session-id', newSessionId);
       sessionStorage.setItem('chat-session-id', newSessionId);
@@ -301,22 +294,49 @@ export const useChat = () => {
       return;
     }
     
-    // Check storage one more time before creating new session
+    // Check if there's a stored session, but validate it exists in the backend
     try {
       const storedSessionId = localStorage.getItem('chat-session-id') || 
-                             sessionStorage.getItem('chat-session-id');
+                            sessionStorage.getItem('chat-session-id');
       
       if (storedSessionId && storedSessionId.startsWith('session_')) {
-        sessionLogger.success(`Found stored session during chat open: "${storedSessionId}"`);
-        setSessionId(storedSessionId);
-        loadConversationHistory(storedSessionId);
+        sessionLogger.info(`Found stored session: "${storedSessionId}"`);
+        
+        // Validate if this session actually exists in the backend
+        fetch(`/api/chat-logs?client=techequity&sessionId=${storedSessionId}&limit=1`)
+          .then(response => response.json())
+          .then(result => {
+            if (result.success && result.data.length > 0) {
+              sessionLogger.success(`Validated existing session: "${storedSessionId}"`);
+              setSessionId(storedSessionId);
+              loadConversationHistory(storedSessionId);
+            } else {
+              sessionLogger.info(`Stored session not found in backend, creating new session`);
+              const newSessionId = createNewSession();
+              setSessionId(newSessionId);
+              
+              setTimeout(() => {
+                logMessage('ai', 'Hello! To get started, please tell me your first and last name.');
+              }, 100);
+            }
+          })
+          .catch(error => {
+            sessionLogger.error('Error validating stored session:', error);
+            const newSessionId = createNewSession();
+            setSessionId(newSessionId);
+            
+            setTimeout(() => {
+              logMessage('ai', 'Hello! To get started, please tell me your first and last name.');
+            }, 100);
+          });
+        
         return;
       }
     } catch (error) {
       sessionLogger.error('Error checking stored session:', error);
     }
     
-    // Only create new session if absolutely necessary
+    // No valid stored session, create new one
     const newSessionId = createNewSession();
     setSessionId(newSessionId);
     
@@ -522,13 +542,16 @@ export const useChat = () => {
   // Session cleanup function for development
   const clearSession = () => {
     try {
+      // Clear all storage locations
       localStorage.removeItem('chat-session-id');
       sessionStorage.removeItem('chat-session-id');
       
+      // Clear URL parameters
       const url = new URL(window.location.href);
       url.searchParams.delete('sessionId');
       window.history.replaceState({}, '', url.toString());
       
+      // Reset all state
       setSessionId('');
       setUserName('');
       setIsNameCollected(false);
@@ -537,7 +560,7 @@ export const useChat = () => {
         content: 'Hello! To get started, please tell me your first and last name.'
       }]);
       
-      sessionLogger.success('Session cleared completely');
+      sessionLogger.success('Session cleared completely - next chat will get new unique ID');
     } catch (error) {
       sessionLogger.error('Error clearing session:', error);
     }
