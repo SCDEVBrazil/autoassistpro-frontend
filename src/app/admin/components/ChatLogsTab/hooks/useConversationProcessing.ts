@@ -210,7 +210,7 @@ export const useConversationProcessing = (chatLogs: ChatLog[]) => {
     }
   }, [processingConfig.durationCalculationPrecision]);
 
-  // Device-aware conversation grouping and batching
+  // FIXED: Device-aware conversation grouping and batching
   const processConversationsInBatches = useCallback((logs: ChatLog[]): ConversationBox[] => {
     const conversationMap = new Map<string, ConversationBox>();
     
@@ -229,12 +229,12 @@ export const useConversationProcessing = (chatLogs: ChatLog[]) => {
       const batch = logs.slice(i, i + batchSize);
       
       batch.forEach(log => {
-        const userName = extractUserName(log);
+        const currentUserName = extractUserName(log);
         
         if (!conversationMap.has(log.sessionId)) {
           conversationMap.set(log.sessionId, {
             sessionId: log.sessionId,
-            userName: userName,
+            userName: currentUserName, // Initial name from first message
             messageCount: 0,
             firstMessage: '',
             lastActivity: log.timestamp,
@@ -245,6 +245,14 @@ export const useConversationProcessing = (chatLogs: ChatLog[]) => {
         }
 
         const conversation = conversationMap.get(log.sessionId)!;
+        
+        // FIX: Update userName if current message has better user information
+        // Priority: Actual user name > Anonymous User
+        if (currentUserName !== 'Anonymous User' && 
+            (conversation.userName === 'Anonymous User' || !conversation.userName)) {
+          conversation.userName = currentUserName;
+        }
+        
         conversation.messages.push(log);
         conversation.messageCount++;
         
