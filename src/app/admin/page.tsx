@@ -1,9 +1,9 @@
-// src/app/admin/page.tsx - Complete Fixed Version
+// src/app/admin/page.tsx - Complete Fixed Version with AppointmentModal
 
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ActiveTab, Notification } from './types';
+import { ActiveTab, Notification, Appointment } from './types';
 import { useAuth } from './hooks/useAuth';
 import { useAppointments } from './hooks/useAppointments';
 import { useAvailability } from './hooks/useAvailability';
@@ -22,12 +22,17 @@ import { SettingsTab } from './components/SettingsTab';
 import { ChatLogsTab } from './components/ChatLogsTab/ChatLogsTab';
 import { AnalyticsTab } from './components/AnalyticsTab';
 import { EditAppointmentModal } from './components/EditAppointmentModal';
+import { AppointmentModal } from './components/AppointmentModal';
 import { NotificationModal } from './components/NotificationModal';
 import { ConfirmationModal } from './components/ConfirmationModal';
 
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('availability');
   const [notification, setNotification] = useState<Notification | null>(null);
+  
+  // NEW: Appointment modal state
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
 
   // Authentication hook
   const { isAuthenticated, loginForm, handleLogin, handleLogout, updateLoginForm } = useAuth();
@@ -41,13 +46,67 @@ export default function AdminPanel() {
   // Navigation handlers for cross-linking between tabs
   const handleViewConversation = (sessionId: string) => {
     setActiveTab('chat-logs');
+    // Close appointment modal if open
+    if (showAppointmentModal) {
+      setShowAppointmentModal(false);
+      setSelectedAppointment(null);
+    }
     setTimeout(() => {
       chatLogs.handleSelectSession(sessionId);
     }, 100);
   };
 
+  // UPDATED: Enhanced appointment view handler
   const handleViewAppointment = (appointmentId: number) => {
-    setActiveTab('bookings');
+    console.log('Looking for appointment with ID:', appointmentId);
+    
+    // Handle special case where appointmentId is -1 (find by sessionId)
+    if (appointmentId === -1) {
+      // We need to find the appointment by sessionId from the currently selected conversation
+      const currentSessionId = chatLogs.selectedSession;
+      if (currentSessionId) {
+        const appointment = appointments.scheduledCalls.find(apt => apt.chatSessionId === currentSessionId);
+        if (appointment) {
+          setActiveTab('bookings');
+          setSelectedAppointment(appointment);
+          setShowAppointmentModal(true);
+          console.log('Opening appointment modal for session:', currentSessionId);
+          return;
+        }
+      }
+      
+      setNotification({
+        type: 'error',
+        message: 'Unable to find linked appointment. The appointment may have been deleted or the link is broken.'
+      });
+      return;
+    }
+    
+    // REMOVE THE 'else' KEYWORD HERE, but keep this logic:
+    // Find the specific appointment by ID
+    const appointment = appointments.scheduledCalls.find(apt => apt.id === appointmentId);
+    if (appointment) {
+      // Switch to bookings tab
+      setActiveTab('bookings');
+      
+      // Open the appointment modal
+      setSelectedAppointment(appointment);
+      setShowAppointmentModal(true);
+      
+      console.log('Opening appointment modal for:', appointment.firstName, appointment.lastName);
+    } else {
+      console.warn('Appointment not found with ID:', appointmentId);
+      setNotification({
+        type: 'error',
+        message: `Appointment with ID ${appointmentId} not found.`
+      });
+    }
+  };
+
+  // NEW: Appointment modal close handler
+  const handleCloseAppointmentModal = () => {
+    setShowAppointmentModal(false);
+    setSelectedAppointment(null);
   };
 
   // Chat logs delete handler
@@ -119,17 +178,22 @@ export default function AdminPanel() {
             onRemoveBlackout={availability.removeBlackoutDate}
           />
         );
-      case 'bookings':
-        return (
-          <BookingsTab
-            scheduledCalls={appointments.scheduledCalls}
-            isLoading={appointments.isLoading}
-            onRefresh={appointments.loadScheduledCalls}
-            onEdit={appointments.openEditModal}
-            onDelete={appointments.initiateDeleteAppointment}
-            onViewConversation={handleViewConversation}
-          />
-        );
+        case 'bookings':
+          return (
+            <BookingsTab
+              scheduledCalls={appointments.scheduledCalls}
+              isLoading={appointments.isLoading}
+              onRefresh={appointments.loadScheduledCalls}
+              onEdit={appointments.openEditModal}
+              onDelete={appointments.initiateDeleteAppointment}
+              onViewConversation={handleViewConversation}
+              // ADD THIS LINE:
+              onAppointmentClick={(appointment) => {
+                setSelectedAppointment(appointment);
+                setShowAppointmentModal(true);
+              }}
+            />
+          );
       case 'chat-logs':
         return (
           <ChatLogsTab
@@ -184,6 +248,22 @@ export default function AdminPanel() {
         onFormChange={appointments.handleEditFormChange}
       />
 
+      {/* NEW: Appointment Details Modal */}
+      <AppointmentModal
+        appointment={selectedAppointment}
+        isOpen={showAppointmentModal}
+        onClose={handleCloseAppointmentModal}
+        onEdit={(appointment) => {
+          appointments.openEditModal(appointment);
+          setShowAppointmentModal(false);
+        }}
+        onDelete={(appointmentId) => {
+          appointments.initiateDeleteAppointment(appointmentId);
+          setShowAppointmentModal(false);
+        }}
+        onViewConversation={handleViewConversation}
+      />
+
       <ConfirmationModal
         isOpen={appointments.showDeleteConfirmation}
         title="Delete Appointment"
@@ -224,6 +304,22 @@ export default function AdminPanel() {
         onFormChange={appointments.handleEditFormChange}
       />
 
+      {/* NEW: Appointment Details Modal */}
+      <AppointmentModal
+        appointment={selectedAppointment}
+        isOpen={showAppointmentModal}
+        onClose={handleCloseAppointmentModal}
+        onEdit={(appointment) => {
+          appointments.openEditModal(appointment);
+          setShowAppointmentModal(false);
+        }}
+        onDelete={(appointmentId) => {
+          appointments.initiateDeleteAppointment(appointmentId);
+          setShowAppointmentModal(false);
+        }}
+        onViewConversation={handleViewConversation}
+      />
+
       <ConfirmationModal
         isOpen={appointments.showDeleteConfirmation}
         title="Delete Appointment"
@@ -261,6 +357,22 @@ export default function AdminPanel() {
         onClose={appointments.closeEditModal}
         onSave={appointments.saveEditedAppointment}
         onFormChange={appointments.handleEditFormChange}
+      />
+
+      {/* NEW: Appointment Details Modal */}
+      <AppointmentModal
+        appointment={selectedAppointment}
+        isOpen={showAppointmentModal}
+        onClose={handleCloseAppointmentModal}
+        onEdit={(appointment) => {
+          appointments.openEditModal(appointment);
+          setShowAppointmentModal(false);
+        }}
+        onDelete={(appointmentId) => {
+          appointments.initiateDeleteAppointment(appointmentId);
+          setShowAppointmentModal(false);
+        }}
+        onViewConversation={handleViewConversation}
       />
 
       <ConfirmationModal

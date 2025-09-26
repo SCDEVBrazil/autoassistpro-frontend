@@ -15,6 +15,7 @@ interface AppointmentTableProps {
   onEdit: (appointment: Appointment) => void;
   onDelete: (appointmentId: number) => void;
   onViewConversation?: (sessionId: string) => void;
+  onAppointmentClick?: (appointment: Appointment) => void;
 }
 
 // FIXES for AppointmentTable.tsx component
@@ -24,7 +25,8 @@ export const AppointmentTable = ({
   isLoading,
   onEdit,
   onDelete,
-  onViewConversation
+  onViewConversation,
+  onAppointmentClick
 }: AppointmentTableProps) => {
   // FIX: Use ALL formatting functions, not just formatSessionId and getStatusStyles
   const { 
@@ -131,7 +133,10 @@ export const AppointmentTable = ({
   const TabletAppointmentTable = () => (
     <div className="grid grid-cols-2 gap-4">
       {appointments.map((call) => (
-        <div key={call.id} className="bg-slate-700/60 border border-slate-600/60 rounded-lg p-4 hover:bg-slate-600/60 transition-colors">
+        <div key={call.id}
+        className="bg-slate-700/60 border border-slate-600/60 rounded-lg p-4 hover:bg-slate-600/60 transition-colors"
+        onClick={() => onAppointmentClick && onAppointmentClick(call)}
+        >
           {/* Similar structure but with formatDisplayDate, formatDisplayTime, formatPhoneNumber */}
           <div className="flex items-start justify-between mb-3">
             <div>
@@ -222,7 +227,10 @@ export const AppointmentTable = ({
         </thead>
         <tbody className="divide-y divide-slate-600/50">
           {appointments.map((call) => (
-            <tr key={call.id} className="hover:bg-slate-700/30">
+            <tr key={call.id}
+              className="hover:bg-slate-700/30 cursor-pointer"
+              onClick={() => onAppointmentClick && onAppointmentClick(call)}
+            >
               <td className="px-4 py-4">
                 <div>
                   <div className="font-medium text-gray-100">{call.firstName} {call.lastName}</div>

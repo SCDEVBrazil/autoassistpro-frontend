@@ -22,6 +22,7 @@ interface BookingsTabProps {
   onEdit: (appointment: Appointment) => void;
   onDelete: (appointmentId: number) => void;
   onViewConversation?: (sessionId: string) => void;
+  onAppointmentClick?: (appointment: Appointment) => void;
 }
 
 export const BookingsTab = ({
@@ -30,7 +31,8 @@ export const BookingsTab = ({
   onRefresh,
   onEdit,
   onDelete,
-  onViewConversation
+  onViewConversation,
+  onAppointmentClick
 }: BookingsTabProps) => {
   const filtering = useAppointmentFiltering(scheduledCalls);
   const { type: deviceType } = useDeviceDetection();
@@ -288,6 +290,7 @@ export const BookingsTab = ({
               onEdit={onEdit}
               onDelete={onDelete}
               onViewConversation={onViewConversation}
+              onAppointmentClick={onAppointmentClick}
             />
 
             <PaginationControls
@@ -359,6 +362,7 @@ export const BookingsTab = ({
               onEdit={onEdit}
               onDelete={onDelete}
               onViewConversation={onViewConversation}
+              onAppointmentClick={onAppointmentClick}
             />
 
             <PaginationControls

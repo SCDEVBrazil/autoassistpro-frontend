@@ -11,4 +11,5 @@ export interface ConversationBox {
   duration: string;
   hasAppointment: boolean;
   messages: ChatLog[];
+  appointmentId?: number;
 }

@@ -21,7 +21,7 @@ import { PerformanceWidget } from './components/PerformanceWidget';
 import { EnhancedChatControls } from './components/EnhancedChatControls';
 import { EnhancedConversationDisplay } from './components/EnhancedConversationDisplay';
 import { EnhancedPagination } from './components/EnhancedPagination';
-import { ConversationDetail } from './components/ConversationDetail';
+import { ConversationModal } from './components/ConversationModal';
 import { AdvancedChatFeatures } from './components/AdvancedChatFeatures';
 import { LeadManagement } from './components/LeadManagement';
 import { DeleteConfirmationModal } from './components/DeleteConfirmationModal';
@@ -92,30 +92,6 @@ export const ChatLogsTab = ({
 
   // Mobile: Single conversation list with drill-down and enhanced features
   const MobileChatLogsTab = () => {
-    const [showConversationDetail, setShowConversationDetail] = useState(false);
-
-    const handleMobileConversationClick = (sessionId: string) => {
-      handleConversationClick(sessionId);
-      setShowConversationDetail(true);
-    };
-
-    const handleMobileBackToList = () => {
-      setShowConversationDetail(false);
-      handleBackToConversations();
-    };
-
-    if (showConversationDetail && selectedConversationData) {
-      return (
-        <div className="space-y-4">
-          <ConversationDetail
-            conversation={selectedConversationData}
-            onBackToConversations={handleMobileBackToList}
-            formatTimestamp={formatTimestamp}
-          />
-        </div>
-      );
-    }
-
     return (
       <div className="space-y-4">
         {/* Mobile Main Chat Logs Section */}
@@ -161,7 +137,7 @@ export const ChatLogsTab = ({
               conversations={paginatedConversations}
               isLoading={isLoading}
               selectedConversation={selectedConversation}
-              onConversationClick={handleMobileConversationClick}
+              onConversationClick={handleConversationClick}
               onDeleteClick={handleDeleteClick}
               onViewAppointment={onViewAppointment}
               formatTimestamp={formatTimestamp}
@@ -185,6 +161,17 @@ export const ChatLogsTab = ({
         {/* Mobile Premium Features */}
         <AdvancedChatFeatures />
         <LeadManagement />
+
+        {/* Mobile Conversation Modal */}
+        {selectedConversationData && (
+          <ConversationModal
+            conversation={selectedConversationData}
+            isOpen={!!selectedConversationData}
+            onClose={handleBackToConversations}
+            onViewAppointment={onViewAppointment}
+            formatTimestamp={formatTimestamp}
+          />
+        )}
 
         <DeleteConfirmationModal
           isOpen={showDeleteConfirmation}
@@ -266,18 +253,20 @@ export const ChatLogsTab = ({
         </div>
       </div>
 
-      {/* Tablet Selected Conversation Messages */}
-      {selectedConversationData && (
-        <ConversationDetail
-          conversation={selectedConversationData}
-          onBackToConversations={handleBackToConversations}
-          formatTimestamp={formatTimestamp}
-        />
-      )}
-
       {/* Tablet Premium Feature Sections */}
       <AdvancedChatFeatures />
       <LeadManagement />
+
+      {/* Tablet Conversation Modal */}
+      {selectedConversationData && (
+        <ConversationModal
+          conversation={selectedConversationData}
+          isOpen={!!selectedConversationData}
+          onClose={handleBackToConversations}
+          onViewAppointment={onViewAppointment}
+          formatTimestamp={formatTimestamp}
+        />
+      )}
 
       <DeleteConfirmationModal
         isOpen={showDeleteConfirmation}
@@ -287,30 +276,41 @@ export const ChatLogsTab = ({
     </div>
   );
 
-  // Desktop: Enhanced three-panel layout with full features
+  // Desktop: Enhanced three-panel layout with full features - WITH CENTERED HEADER
   const DesktopChatLogsTab = () => (
     <div className="space-y-6">
       {/* Desktop Main Chat Logs Section */}
       <div className="bg-gradient-to-br from-slate-800/90 via-red-900/10 to-slate-700/90 backdrop-blur-sm rounded-xl shadow-xl border border-slate-600/50">
         <div className="p-6 border-b border-slate-600/50">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-xl font-semibold text-white">Customer Conversations</h2>
-              <p className="text-gray-300 mt-1">View and manage chat conversations by customer</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <PerformanceWidget />
-              <button
-                onClick={onRefresh}
-                disabled={isLoading}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm flex items-center gap-2 disabled:opacity-50"
+          {/* CORRECTED: Centered Title Section */}
+          <div className="text-center mb-6">
+            <h2 className="text-xl font-semibold text-white">Customer Conversations</h2>
+            <p className="text-gray-300 mt-1">View and manage chat conversations by customer</p>
+          </div>
+
+          {/* CORRECTED: Centered Performance Widget and Refresh Button Row */}
+          <div className="flex items-center justify-center gap-4 mb-6">
+            <PerformanceWidget />
+            <button
+              onClick={onRefresh}
+              disabled={isLoading}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white px-6 py-2.5 rounded-lg transition-colors text-sm flex items-center gap-3 font-medium min-w-[120px] justify-center"
+            >
+              <svg 
+                className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                </svg>
-                Refresh
-              </button>
-            </div>
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth="2" 
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+              <span>{isLoading ? 'Refreshing...' : 'Refresh'}</span>
+            </button>
           </div>
 
           {/* Desktop Enhanced Controls */}
@@ -357,18 +357,20 @@ export const ChatLogsTab = ({
         </div>
       </div>
 
-      {/* Desktop Selected Conversation Messages */}
-      {selectedConversationData && (
-        <ConversationDetail
-          conversation={selectedConversationData}
-          onBackToConversations={handleBackToConversations}
-          formatTimestamp={formatTimestamp}
-        />
-      )}
-
       {/* Desktop Premium Feature Sections */}
       <AdvancedChatFeatures />
       <LeadManagement />
+
+      {/* Desktop Conversation Modal */}
+      {selectedConversationData && (
+        <ConversationModal
+          conversation={selectedConversationData}
+          isOpen={!!selectedConversationData}
+          onClose={handleBackToConversations}
+          onViewAppointment={onViewAppointment}
+          formatTimestamp={formatTimestamp}
+        />
+      )}
 
       <DeleteConfirmationModal
         isOpen={showDeleteConfirmation}
