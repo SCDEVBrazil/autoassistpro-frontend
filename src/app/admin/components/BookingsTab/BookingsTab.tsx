@@ -3,7 +3,7 @@
 'use client';
 
 import { Appointment } from '../../types';
-import { useAppointmentFiltering } from './hooks/useAppointmentFiltering';
+import { useAppointmentFiltering } from './hooks/useAppointmentFiltering/index';
 import { BookingsHeader } from './components/BookingsHeader';
 import { AppointmentFilters } from './components/AppointmentFilters';
 import { AppointmentTable } from './components/AppointmentTable';
@@ -60,16 +60,20 @@ export const BookingsTab = ({
           />
 
           <div className="mt-4">
-            <AppointmentFilters
-              searchTerm={filtering.searchTerm}
-              statusFilter={filtering.statusFilter}
-              dateFilter={filtering.dateFilter}
-              startIndex={filtering.startIndex}
-              endIndex={filtering.endIndex}
-              totalCount={filtering.filteredAndSortedAppointments.length}
-              onSearchChange={filtering.handleSearchChange}
-              onFilterChange={filtering.handleFilterChange}
-            />
+          <AppointmentFilters
+            searchTerm={filtering.searchTerm}
+            statusFilter={filtering.statusFilter}
+            dateFilter={filtering.dateFilter}
+            startIndex={filtering.startIndex}
+            endIndex={filtering.endIndex}
+            totalCount={filtering.filteredAndSortedAppointments.length}
+            onSearchChange={filtering.handleSearchChange}
+            onFilterChange={(filterType: string, value: string) => {
+              if (filterType === 'status' || filterType === 'date') {
+                filtering.handleFilterChange(filterType, value);
+              }
+            }}
+          />
           </div>
         </div>
 
@@ -247,16 +251,20 @@ export const BookingsTab = ({
             onRefresh={onRefresh}
           />
 
-          <AppointmentFilters
-            searchTerm={filtering.searchTerm}
-            statusFilter={filtering.statusFilter}
-            dateFilter={filtering.dateFilter}
-            startIndex={filtering.startIndex}
-            endIndex={filtering.endIndex}
-            totalCount={filtering.filteredAndSortedAppointments.length}
-            onSearchChange={filtering.handleSearchChange}
-            onFilterChange={filtering.handleFilterChange}
-          />
+        <AppointmentFilters
+          searchTerm={filtering.searchTerm}
+          statusFilter={filtering.statusFilter}
+          dateFilter={filtering.dateFilter}
+          startIndex={filtering.startIndex}
+          endIndex={filtering.endIndex}
+          totalCount={filtering.filteredAndSortedAppointments.length}
+          onSearchChange={filtering.handleSearchChange}
+          onFilterChange={(filterType: string, value: string) => {
+            if (filterType === 'status' || filterType === 'date') {
+              filtering.handleFilterChange(filterType, value);
+            }
+          }}
+        />
         </div>
 
         {isLoading ? (
@@ -293,11 +301,15 @@ export const BookingsTab = ({
               onAppointmentClick={onAppointmentClick}
             />
 
-            <PaginationControls
-              currentPage={filtering.currentPage}
-              totalPages={filtering.totalPages}
-              onGoToPage={filtering.goToPage}
-            />
+          <PaginationControls
+            currentPage={filtering.currentPage}
+            totalPages={filtering.totalPages}
+            pageSize={filtering.pageSize}
+            pageSizeOptions={filtering.pageSizeOptions}
+            totalItems={filtering.filteredAndSortedAppointments.length}
+            onGoToPage={filtering.goToPage}
+            onPageSizeChange={filtering.changePageSize}
+          />
           </>
         )}
       </div>
@@ -319,16 +331,20 @@ export const BookingsTab = ({
             onRefresh={onRefresh}
           />
 
-          <AppointmentFilters
-            searchTerm={filtering.searchTerm}
-            statusFilter={filtering.statusFilter}
-            dateFilter={filtering.dateFilter}
-            startIndex={filtering.startIndex}
-            endIndex={filtering.endIndex}
-            totalCount={filtering.filteredAndSortedAppointments.length}
-            onSearchChange={filtering.handleSearchChange}
-            onFilterChange={filtering.handleFilterChange}
-          />
+        <AppointmentFilters
+          searchTerm={filtering.searchTerm}
+          statusFilter={filtering.statusFilter}
+          dateFilter={filtering.dateFilter}
+          startIndex={filtering.startIndex}
+          endIndex={filtering.endIndex}
+          totalCount={filtering.filteredAndSortedAppointments.length}
+          onSearchChange={filtering.handleSearchChange}
+          onFilterChange={(filterType: string, value: string) => {
+            if (filterType === 'status' || filterType === 'date') {
+              filtering.handleFilterChange(filterType, value);
+            }
+          }}
+        />
         </div>
 
         {isLoading ? (
@@ -365,11 +381,15 @@ export const BookingsTab = ({
               onAppointmentClick={onAppointmentClick}
             />
 
-            <PaginationControls
-              currentPage={filtering.currentPage}
-              totalPages={filtering.totalPages}
-              onGoToPage={filtering.goToPage}
-            />
+          <PaginationControls
+            currentPage={filtering.currentPage}
+            totalPages={filtering.totalPages}
+            pageSize={filtering.pageSize}
+            pageSizeOptions={filtering.pageSizeOptions}
+            totalItems={filtering.filteredAndSortedAppointments.length}
+            onGoToPage={filtering.goToPage}
+            onPageSizeChange={filtering.changePageSize}
+          />
           </>
         )}
       </div>
