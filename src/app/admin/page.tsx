@@ -1,4 +1,4 @@
-// src/app/admin/page.tsx
+// src/app/admin/page.tsx - Complete Fixed Version
 
 'use client';
 
@@ -66,20 +66,32 @@ export default function AdminPanel() {
     }
   }, [isAuthenticated]);
 
-  // Polling effect for appointments and chat logs
+  // FIXED: Graceful polling effect for appointments and chat logs
   useEffect(() => {
     if (isAuthenticated && (activeTab === 'bookings' || activeTab === 'chat-logs')) {
-      const pollInterval = setInterval(() => {
-        if (activeTab === 'bookings') {
-          appointments.loadScheduledCalls();
-        } else if (activeTab === 'chat-logs') {
-          chatLogs.loadAllChatData();
+      const pollInterval = setInterval(async () => {
+        try {
+          if (activeTab === 'bookings') {
+            // For appointments, the existing load function is fine
+            await appointments.loadScheduledCalls();
+          } else if (activeTab === 'chat-logs') {
+            // FIXED: Use refreshChatData instead of loadAllChatData for graceful updates
+            await chatLogs.refreshChatData();
+          }
+        } catch (error) {
+          console.error('Polling update failed:', error);
+          // Don't show error notifications for background updates
+          // as they can be disruptive to the user experience
         }
-      }, 60000);
+      }, 60000); // 60 seconds
 
-      return () => clearInterval(pollInterval);
+      console.log(`Started graceful polling for ${activeTab} tab`);
+      return () => {
+        clearInterval(pollInterval);
+        console.log(`Stopped polling for ${activeTab} tab`);
+      };
     }
-  }, [isAuthenticated, activeTab]);
+  }, [isAuthenticated, activeTab, appointments.loadScheduledCalls, chatLogs.refreshChatData]);
 
   // Show authentication form if not authenticated
   if (!isAuthenticated) {
