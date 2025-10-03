@@ -41,7 +41,9 @@ export default function AdminPanel() {
   const appointments = useAppointments(setNotification);
   const availability = useAvailability(setNotification);
   const settings = useSettings(setNotification);
-  const chatLogs = useChatLogs(setNotification);
+  
+  // UPDATED: Pass appointments.scheduledCalls to useChatLogs for database-driven appointment detection
+  const chatLogs = useChatLogs(setNotification, appointments.scheduledCalls);
 
   // Navigation handlers for cross-linking between tabs
   const handleViewConversation = (sessionId: string) => {
@@ -82,7 +84,6 @@ export default function AdminPanel() {
       return;
     }
     
-    // REMOVE THE 'else' KEYWORD HERE, but keep this logic:
     // Find the specific appointment by ID
     const appointment = appointments.scheduledCalls.find(apt => apt.id === appointmentId);
     if (appointment) {
@@ -178,22 +179,21 @@ export default function AdminPanel() {
             onRemoveBlackout={availability.removeBlackoutDate}
           />
         );
-        case 'bookings':
-          return (
-            <BookingsTab
-              scheduledCalls={appointments.scheduledCalls}
-              isLoading={appointments.isLoading}
-              onRefresh={appointments.loadScheduledCalls}
-              onEdit={appointments.openEditModal}
-              onDelete={appointments.initiateDeleteAppointment}
-              onViewConversation={handleViewConversation}
-              // ADD THIS LINE:
-              onAppointmentClick={(appointment) => {
-                setSelectedAppointment(appointment);
-                setShowAppointmentModal(true);
-              }}
-            />
-          );
+      case 'bookings':
+        return (
+          <BookingsTab
+            scheduledCalls={appointments.scheduledCalls}
+            isLoading={appointments.isLoading}
+            onRefresh={appointments.loadScheduledCalls}
+            onEdit={appointments.openEditModal}
+            onDelete={appointments.initiateDeleteAppointment}
+            onViewConversation={handleViewConversation}
+            onAppointmentClick={(appointment) => {
+              setSelectedAppointment(appointment);
+              setShowAppointmentModal(true);
+            }}
+          />
+        );
       case 'chat-logs':
         return (
           <ChatLogsTab
@@ -282,16 +282,21 @@ export default function AdminPanel() {
     </div>
   );
 
-  // Tablet: Side navigation with condensed panels
+  // Tablet: Side navigation with optimized layout
   const TabletAdminPanel = () => (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-slate-800">
       <Header onLogout={handleLogout} />
       
-      <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
+      <div className="flex">
+        {/* Tablet Side Navigation */}
+        <div className="w-20 bg-gray-800/50 backdrop-blur-sm border-r border-gray-700">
+          <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
+        </div>
 
-      {/* Tablet content with medium padding */}
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        {renderTabContent()}
+        {/* Tablet Content */}
+        <div className="flex-1 px-6 py-6">
+          {renderTabContent()}
+        </div>
       </div>
 
       {/* Modals */}

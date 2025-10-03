@@ -1,5 +1,5 @@
 // src/app/techequity-demo/hooks/useChat.ts
-// COMPLETE FIXED VERSION WITH PROPER SESSION PERSISTENCE
+// PHASE 2 CHUNK 5: PARALLEL TESTING (Side-by-Side n8n vs Custom Route)
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useEffect, useRef } from 'react';
@@ -19,6 +19,10 @@ const sessionLogger = {
   },
   success: (msg: string, data?: any) => {
     console.log(`🟢 [SESSION SUCCESS] ${new Date().toISOString()} - ${msg}`, data || '');
+  },
+  // NEW: Comparison logger for parallel testing
+  compare: (msg: string, data?: any) => {
+    console.log(`🔶 [COMPARISON] ${new Date().toISOString()} - ${msg}`, data || '');
   }
 };
 
@@ -53,7 +57,6 @@ export const useChat = () => {
     if (sessionId !== previousSessionId.current) {
       sessionLogger.info(`Session ID changed from "${previousSessionId.current}" to "${sessionId}"`);
       sessionLogger.info(`Device type: ${deviceType}`);
-      sessionLogger.info(`Component re-render caused session change`);
       previousSessionId.current = sessionId;
     }
   }, [sessionId, deviceType]);
@@ -67,7 +70,7 @@ export const useChat = () => {
       sessionLogger.info(`useChat hook cleanup for device: ${deviceType}`);
       sessionLogger.info(`Session ID on cleanup: "${sessionId}"`);
     };
-  }, []);
+  }, [deviceType, sessionId]);
 
   // FIXED: Better session persistence with multiple fallbacks
   useEffect(() => {
@@ -81,10 +84,9 @@ export const useChat = () => {
           return;
         }
 
-        // Method 1: Try localStorage first, but validate it
+        // Try to get stored session
         const savedSessionId = sessionStorage.getItem('chat-session-id');
         if (savedSessionId && savedSessionId.startsWith('session_')) {
-          // Don't automatically restore - let handleOpenChat decide
           sessionLogger.info(`Found stored session: "${savedSessionId}" - will validate when chat opens`);
           return;
         }
@@ -208,64 +210,60 @@ export const useChat = () => {
       url.searchParams.delete('sessionId');
       window.history.replaceState({}, '', url.toString());
     } catch (error) {
-      console.warn('Error clearing old session data:', error);
+      sessionLogger.error('Error clearing old session:', error);
     }
 
-    // Create truly unique timestamp-based session ID
+    // Create completely unique session ID
     const timestamp = Date.now();
-    const randomPart = Math.random().toString(36).substr(2, 9);
+    const randomPart = Math.random().toString(36).substring(2, 15);
     const newSessionId = `session_${timestamp}_${randomPart}`;
     
     sessionLogger.success(`Created new session ID: "${newSessionId}"`);
-    sessionLogger.info(`Device type: ${deviceType}`);
-    sessionLogger.info(`Timestamp: ${timestamp}`);
-    sessionLogger.info(`Random part: ${randomPart}`);
     
-    // Save to multiple places immediately
     try {
-      localStorage.setItem('chat-session-id', newSessionId);
       sessionStorage.setItem('chat-session-id', newSessionId);
       
-      // Also add to URL for better tracking
       const url = new URL(window.location.href);
       url.searchParams.set('sessionId', newSessionId);
       window.history.replaceState({}, '', url.toString());
       
-      sessionLogger.success('Session ID saved to all storage methods');
+      sessionLogger.success(`New session persisted: "${newSessionId}"`);
     } catch (error) {
-      sessionLogger.error('Error saving session ID:', error);
+      sessionLogger.error('Error persisting new session:', error);
     }
     
     return newSessionId;
   };
 
-  // FIXED: Load conversation history with debugging
-  const loadConversationHistory = async (sessionIdToLoad: string): Promise<void> => {
-    sessionLogger.info(`Loading conversation history for session: "${sessionIdToLoad}"`);
+  // Load conversation history
+  const loadConversationHistory = async (sessionId: string): Promise<void> => {
+    sessionLogger.info(`Loading conversation history for session: "${sessionId}"`);
     
     try {
-      const response = await fetch(`/api/chat-logs?client=techequity&sessionId=${sessionIdToLoad}&limit=50`);
+      const response = await fetch(`/api/chat-logs?client=techequity&sessionId=${sessionId}`);
       const result = await response.json();
       
-      if (result.success && result.data.length > 0) {
-        sessionLogger.success(`Loaded ${result.data.length} messages for session: "${sessionIdToLoad}"`);
+      if (result.success && result.data && result.data.length > 0) {
+        sessionLogger.success(`Loaded ${result.data.length} messages for session: "${sessionId}"`);
         
         const loadedMessages: Message[] = result.data.map((log: any) => ({
-          type: log.messageType as 'user' | 'ai',
+          type: log.messageType,
           content: log.content
         }));
         
-        setMessages(loadedMessages);
+        const lastUserMessage = result.data
+          .reverse()
+          .find((log: any) => log.messageType === 'user' && log.userInfo?.userName);
         
-        // Check if name was already collected
-        const userMessages = result.data.filter((log: any) => log.messageType === 'user');
-        if (userMessages.length > 0 && userMessages[0].userInfo?.userName) {
-          setUserName(userMessages[0].userInfo.userName);
+        if (lastUserMessage && lastUserMessage.userInfo?.userName) {
+          setUserName(lastUserMessage.userInfo.userName);
           setIsNameCollected(true);
-          sessionLogger.success(`Restored user name: "${userMessages[0].userInfo.userName}"`);
+          sessionLogger.success(`Restored user name: "${lastUserMessage.userInfo.userName}"`);
         }
+        
+        setMessages(loadedMessages);
       } else {
-        sessionLogger.info(`No existing conversation found for session: "${sessionIdToLoad}"`);
+        sessionLogger.info('No existing messages found, starting fresh');
         setMessages([{
           type: 'ai',
           content: 'Hello! To get started, please tell me your first and last name.'
@@ -312,8 +310,10 @@ export const useChat = () => {
               const newSessionId = createNewSession();
               setSessionId(newSessionId);
               
+              // FIXED: Wait for state update before logging
               setTimeout(() => {
-                logMessage('ai', 'Hello! To get started, please tell me your first and last name.');
+                // Don't log here - the initial message is already in state
+                sessionLogger.info('New session created, initial message already displayed');
               }, 100);
             }
           })
@@ -322,8 +322,10 @@ export const useChat = () => {
             const newSessionId = createNewSession();
             setSessionId(newSessionId);
             
+            // FIXED: Wait for state update before logging
             setTimeout(() => {
-              logMessage('ai', 'Hello! To get started, please tell me your first and last name.');
+              // Don't log here - the initial message is already in state
+              sessionLogger.info('New session created after error, initial message already displayed');
             }, 100);
           });
         
@@ -337,12 +339,14 @@ export const useChat = () => {
     const newSessionId = createNewSession();
     setSessionId(newSessionId);
     
-    setTimeout(() => {
-      logMessage('ai', 'Hello! To get started, please tell me your first and last name.');
-    }, 100);
+    // FIXED: Don't log the initial message - it's already in the messages state
+    // The initial "Hello! To get started..." message is set in useState initialization
+    sessionLogger.info('New session created, initial message already displayed');
   };
 
-  // Send message function
+  // ========================================================================
+  // PHASE 2 CHUNK 5: PARALLEL TESTING - SEND TO BOTH ENDPOINTS
+  // ========================================================================
   const sendMessage = async (): Promise<void> => {
     if (!inputValue.trim() || isLoading) return;
     
@@ -359,7 +363,7 @@ export const useChat = () => {
     setIsLoading(true);
 
     try {
-      // Handle name collection
+      // Handle name collection (same as before)
       if (!isNameCollected) {
         const nameInfo = extractName(messageContent);
         if (nameInfo && (nameInfo.firstName.length >= 2)) {
@@ -397,38 +401,43 @@ export const useChat = () => {
         await logMessage('user', messageContent);
       }
 
-      // Send to AI
-      sessionLogger.info(`Sending AI request for session: "${sessionId}"`);
+      // ====================================================================
+      // PHASE 2 CHUNK 6: SWITCHED TO CUSTOM /api/ai-chat ROUTE
+      // ====================================================================
+      sessionLogger.info(`Sending AI request to custom /api/ai-chat endpoint`);
       
-      const response = await fetch('https://n8n-production-26f5.up.railway.app/webhook/44a5dd65-4e87-4e02-bc22-b5fe27350fd6', {
+      // Prepare request payload
+      const requestPayload = {
+        clientId: 'techequity',
+        query: messageContent,
+        sessionId: sessionId,
+        userName: userName || `${deviceType.charAt(0).toUpperCase() + deviceType.slice(1)} User`,
+        deviceType: deviceType
+      };
+
+      // Call custom API endpoint
+      const response = await fetch('/api/ai-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: messageContent,
-          sessionId: sessionId,
-          userName: userName || `${deviceType.charAt(0).toUpperCase() + deviceType.slice(1)} User`,
-          deviceType: deviceType,
-          isTouchDevice: isTouchDevice
-        }),
+        body: JSON.stringify(requestPayload),
       });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const responseText = await response.text();
-      let cleanResponse = responseText;
-
-      try {
-        const jsonResponse = JSON.parse(responseText);
-        if (jsonResponse.response) {
-          cleanResponse = jsonResponse.response;
-        }
-      } catch (e) {
-        // Use raw text response
+      const jsonData = await response.json();
+      
+      if (!jsonData.success || !jsonData.response) {
+        throw new Error(jsonData.error || 'No response from AI');
       }
 
-      cleanResponse = cleanResponse.replace(/^["']|["']$/g, '');
+      const cleanResponse = jsonData.response;
+      
+      // Log metadata for debugging
+      if (jsonData.metadata) {
+        sessionLogger.info('Response metadata:', jsonData.metadata);
+      }
 
       const aiMessage: Message = {
         type: 'ai',
@@ -438,6 +447,7 @@ export const useChat = () => {
       setMessages(prev => [...prev, aiMessage]);
       await logMessage('ai', cleanResponse);
 
+      // Check for scheduling prompt
       if (!showSchedulingPrompt && isNameCollected) {
         const serviceKeywords = ['service', 'solution', 'help', 'support', 'consulting', 'cybersecurity', 'operations'];
         const messageContainsServices = serviceKeywords.some(keyword => 
@@ -457,69 +467,34 @@ export const useChat = () => {
         content: 'I apologize, but I encountered a technical error. Please try again.'
       };
       setMessages(prev => [...prev, errorMessage]);
+      await logMessage('ai', errorMessage.content);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  // Scroll to bottom function
-  const scrollToBottom = (): void => {
-    if (deviceType === 'mobile') {
-      if (lastUserMessageRef.current) {
-        lastUserMessageRef.current.scrollIntoView({ block: 'start' });
-      } else {
-        messagesEndRef.current?.scrollIntoView({ block: 'end' });
-      }
-    } else {
-      if (lastUserMessageRef.current) {
-        lastUserMessageRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      } else {
+      
+      // Scroll to bottom
+      setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (deviceType === 'tablet') {
-      const timeoutId = setTimeout(() => {
-        scrollToBottom();
       }, 100);
-      return () => clearTimeout(timeoutId);
-    } else {
-      scrollToBottom();
-    }
-  }, [messages, deviceType]);
-
-  // Key press handler
-  const handleKeyPress = (e: { key: string; shiftKey: boolean; preventDefault: () => void }): void => {
-    if (e.key === 'Enter') {
-      if (deviceType === 'desktop') {
-        if (e.shiftKey) {
-          return;
-        } else {
-          e.preventDefault();
-          sendMessage();
-        }
-      } else if (deviceType === 'tablet') {
-        if (e.shiftKey) {
-          return;
-        } else {
-          e.preventDefault();
-          sendMessage();
-        }
-      } else {
-        if (!e.shiftKey) {
-          e.preventDefault();
-          sendMessage();
-        }
-      }
     }
   };
 
-  // Add scheduling messages
-  const addSchedulingMessages = (dayName: string, time: string, email: string): void => {
+  // Handle Enter key press
+  const handleKeyPress = (e: { key: string; shiftKey: boolean; preventDefault: () => void }): void => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  // Device-aware scheduling message configuration
+  const addSchedulingMessages = (confirmationData: { date: string; time: string; email: string }): void => {
+    const { date, time, email } = confirmationData;
+    
+    const dateObj = new Date(date);
+    const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    
     const schedulingMessages = {
-      mobile: `Great! I've scheduled your call for ${dayName} at ${time}. You'll receive a confirmation at ${email}.`,
+      mobile: `Great! Your call is set for ${dayName} at ${time}. Check ${email} for details.`,
       tablet: `Perfect! I've successfully scheduled your discovery call for ${dayName} at ${time}. You'll receive a detailed confirmation email at ${email} with the meeting link and agenda. Looking forward to discussing how we can help your business grow!`,
       desktop: `Excellent! Your discovery call has been successfully scheduled for ${dayName} at ${time}. You will receive a comprehensive confirmation email at ${email} containing the meeting details, agenda, and a calendar invitation. Our team is looking forward to discussing your business needs and exploring how our expertise can drive meaningful results for your organization.`
     };

@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useDeviceDetection } from '@/hooks/useDeviceDetection';
-import { ChatLog, ChatSession, Notification } from '../../types';
+import { ChatLog, ChatSession, Notification, Appointment } from '../../types';
 import { ConversationBox } from '../../components/ChatLogsTab/types';
 import { 
   UseChatLogsReturn,
@@ -36,7 +36,8 @@ import {
 } from './refreshUtils';
 
 export const useChatLogs = (
-  setNotification: (notification: Notification | null) => void
+  setNotification: (notification: Notification | null) => void,
+  scheduledCalls: Appointment[] = [] // NEW: Accept scheduled calls for database-driven appointment detection
 ): UseChatLogsReturn => {
   const { type: deviceType, isTouchDevice } = useDeviceDetection();
   
@@ -47,8 +48,8 @@ export const useChatLogs = (
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
 
   // Enhanced load chat logs with graceful update support
-  const loadChatLogs = useCallback(async (sessionId?: string, isGracefulUpdate: boolean = false) => {
-    return await loadChatLogsApi({
+  const loadChatLogs = useCallback(async (sessionId?: string, isGracefulUpdate: boolean = false): Promise<ChatLog[]> => {
+    const logs = await loadChatLogsApi({
       sessionId,
       isGracefulUpdate,
       deviceType,
@@ -57,9 +58,40 @@ export const useChatLogs = (
       setChatLogs,
       setNotification
     });
+    return logs;
   }, [deviceType, isTouchDevice, setNotification]);
 
-  // Enhanced delete conversation
+  // Enhanced session selection with state sync
+  const handleSelectSession = useCallback(async (sessionId: string | null) => {
+    setSelectedSession(sessionId);
+    
+    if (sessionId) {
+      try {
+        await loadChatLogs(sessionId, true);
+      } catch (error) {
+        console.error('Error loading session details:', error);
+      }
+    }
+  }, [loadChatLogs]);
+
+  // Process chat logs into sessions whenever logs change
+  useEffect(() => {
+    if (chatLogs.length > 0) {
+      // NEW: Pass scheduledCalls to processChatSessions for database-driven appointment detection
+      const processedSessions = processChatSessions(
+        chatLogs, 
+        deviceType, 
+        extractUserName, 
+        calculateSessionDuration,
+        scheduledCalls // NEW: Pass scheduled calls array
+      );
+      setChatSessions(processedSessions);
+    } else {
+      setChatSessions([]);
+    }
+  }, [chatLogs, deviceType, scheduledCalls]); // NEW: Added scheduledCalls to dependency array
+
+  // Delete conversation with device-aware confirmation
   const deleteConversation = useCallback(async (sessionId: string) => {
     await deleteConversationApi({
       sessionId,
@@ -72,32 +104,10 @@ export const useChatLogs = (
     });
   }, [selectedSession, deviceType, setNotification]);
 
-  // Process chat sessions whenever chatLogs updates
-  useEffect(() => {
-    if (chatLogs.length > 0) {
-      const processedSessions = processChatSessions(chatLogs, deviceType, extractUserName, calculateSessionDuration);
-      setChatSessions(processedSessions);
-    }
-  }, [chatLogs, deviceType]);
-
-  // Device-aware session selection
-  const handleSelectSession = useCallback(async (sessionId: string | null) => {
-    setSelectedSession(sessionId);
-    
-    if (deviceType === 'mobile') {
-      console.log(`Mobile session selected: ${sessionId}`);
-    } else if (deviceType === 'tablet') {
-      if (sessionId && isTouchDevice) {
-        console.log(`Tablet touch session selected: ${sessionId}`);
-      }
-    } else {
-      if (sessionId) {
-        console.log(`Desktop session selected: ${sessionId} - showing conversation details`);
-      } else {
-        console.log('Desktop session deselected - returning to conversation list');
-      }
-    }
-  }, [deviceType, isTouchDevice]);
+  // Device detection hook
+  const { type: deviceTypeDetected, isTouchDevice: isTouchDeviceDetected } = useDeviceDetection();
+  const [detectedDeviceType] = useState<DeviceType>(deviceTypeDetected as DeviceType);
+  const [detectedIsTouchDevice] = useState<boolean>(isTouchDeviceDetected);
 
   // Graceful chat data refresh
   const refreshChatData = useCallback(async () => {
@@ -174,10 +184,17 @@ export const useChatLogs = (
   // Update sessions from logs
   const updateSessionsFromLogs = useCallback(() => {
     if (chatLogs.length > 0) {
-      const processedSessions = processChatSessions(chatLogs, deviceType, extractUserName, calculateSessionDuration);
+      // NEW: Pass scheduledCalls when updating sessions
+      const processedSessions = processChatSessions(
+        chatLogs, 
+        deviceType, 
+        extractUserName, 
+        calculateSessionDuration,
+        scheduledCalls // NEW: Pass scheduled calls array
+      );
       setChatSessions(processedSessions);
     }
-  }, [chatLogs, deviceType]);
+  }, [chatLogs, deviceType, scheduledCalls]); // NEW: Added scheduledCalls to dependency array
 
   // Return all hook functionality
   return {

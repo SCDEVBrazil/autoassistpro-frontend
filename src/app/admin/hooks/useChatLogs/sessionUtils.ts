@@ -1,7 +1,7 @@
 // src/app/admin/hooks/useChatLogs/sessionUtils.ts
 // Session processing and management utilities for chat logs
 
-import { ChatLog, ChatSession } from '../../types';
+import { ChatLog, ChatSession, Appointment } from '../../types';
 import { ConversationBox } from '../../components/ChatLogsTab/types';
 import { DeviceType, CHAT_LOGS_CONFIG } from './types';
 
@@ -85,32 +85,16 @@ export const calculateSessionDuration = (
   }
 };
 
-// Check if session has appointment based on message content
-const hasAppointmentInSession = (
-  messages: ChatLog[],
-  deviceType: DeviceType
-): boolean => {
-  return messages.some(log => {
-    const content = log.content.toLowerCase();
-    
-    if (deviceType === 'mobile') {
-      // Mobile: Simple keyword detection for performance
-      return content.includes('scheduled') || content.includes('appointment');
-    } else {
-      // Tablet/Desktop: More thorough appointment detection
-      return (content.includes('discovery call') && content.includes('scheduled')) ||
-             content.includes('appointment scheduled') ||
-             content.includes('meeting confirmed');
-    }
-  });
-};
+// REMOVED: hasAppointmentInSession() function - no longer needed
+// We now use database-driven appointment detection instead of keyword detection
 
 // Main function to process chat logs into session summaries
 export const processChatSessions = (
   logs: ChatLog[],
   deviceType: DeviceType,
   extractUserNameFn: (log: ChatLog) => string,
-  calculateDurationFn: (messages: ChatLog[], deviceType: DeviceType) => string
+  calculateDurationFn: (messages: ChatLog[], deviceType: DeviceType) => string,
+  scheduledCalls: Appointment[] = [] // NEW: Accept scheduled calls for database-driven appointment detection
 ): ConversationBox[] => {
   const config = CHAT_LOGS_CONFIG[deviceType];
   const sessionMap = new Map<string, {
@@ -150,8 +134,13 @@ export const processChatSessions = (
     // Find first user message for summary
     const firstUserMessage = session.messages.find(msg => msg.messageType === 'user');
     
-    // Check for appointments in this session
-    session.hasAppointment = hasAppointmentInSession(session.messages, deviceType);
+    // NEW: Database-driven appointment detection
+    // Check if any appointment in scheduledCalls has a matching chatSessionId
+    session.hasAppointment = scheduledCalls.some(apt => apt.chatSessionId === session.sessionId);
+    
+    if (session.hasAppointment) {
+      console.log(`✅ APPOINTMENT CONFIRMED for session: ${session.sessionId} (database lookup)`);
+    }
     
     // Extract user name from first message with user info
     const messageWithUserInfo = session.messages.find(msg => 
