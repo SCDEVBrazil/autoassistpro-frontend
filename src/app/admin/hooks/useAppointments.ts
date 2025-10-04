@@ -46,7 +46,7 @@ export const useAppointments = (setNotification: (notification: Notification | n
 
           // Device-specific query parameters for performance
           const queryParams = new URLSearchParams({
-            client: 'techequity',
+            client: process.env.NEXT_PUBLIC_DEFAULT_CLIENT_ID || 'client_techequity_001',
             limit: batchSize.toString(),
             deviceType: deviceType,
             isTouchDevice: isTouchDevice.toString()

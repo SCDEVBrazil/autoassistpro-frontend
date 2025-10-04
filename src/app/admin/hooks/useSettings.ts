@@ -35,7 +35,7 @@ export const useSettings = (setNotification: (notification: Notification | null)
 
           // Device-specific query parameters
           const queryParams = new URLSearchParams({
-            client: 'techequity',
+            client: process.env.NEXT_PUBLIC_DEFAULT_CLIENT_ID || 'client_techequity_001',
             deviceType: deviceType,
             isTouchDevice: isTouchDevice.toString(),
             ...(simplifyResponse && { simplified: 'true' })

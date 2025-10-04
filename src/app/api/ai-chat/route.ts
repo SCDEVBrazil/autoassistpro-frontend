@@ -1,16 +1,14 @@
 // src/app/api/ai-chat/route.ts
-// FIXED VERSION - Improved Knowledge Base Search
+// Multi-tenant AI Chat with Dynamic Client Context
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '@/lib/database';
 
 export async function POST(request: NextRequest) {
   try {
-    // Parse request body
     const body = await request.json();
     const { clientId, query, sessionId, userName, deviceType } = body;
 
-    // Log incoming request for debugging
     console.log('=== AI Chat Request ===');
     console.log('Client ID:', clientId);
     console.log('Query:', query);
@@ -19,7 +17,6 @@ export async function POST(request: NextRequest) {
     console.log('Device Type:', deviceType);
     console.log('=====================');
 
-    // Validate required fields
     if (!clientId) {
       return NextResponse.json(
         { success: false, error: 'Client ID is required' },
@@ -41,7 +38,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate Groq API key
     if (!process.env.GROQ_API_KEY) {
       console.error('GROQ_API_KEY is not set in environment variables');
       return NextResponse.json(
@@ -50,79 +46,94 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // FIXED: Enhanced Knowledge Base Query
-    console.log('\n--- Querying Knowledge Base ---');
     const pool = getPool();
+
+    console.log('\n--- Loading Client Information ---');
+    const clientResult = await pool.query(
+      'SELECT company_name, branding FROM clients WHERE id = $1',
+      [clientId]
+    );
+
+    if (clientResult.rows.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Client not found' },
+        { status: 404 }
+      );
+    }
+
+    const client = clientResult.rows[0];
+    const companyName = client.company_name;
+    const branding = client.branding || {};
+    const companyTagline = branding.company_tagline || 'Professional Business Consulting';
+
+    console.log('Company Name:', companyName);
+    console.log('Company Tagline:', companyTagline);
+    console.log('----------------------------------\n');
+
+    console.log('--- Querying Knowledge Base ---');
     
-    // IMPROVED: Better keyword extraction
-    // 1. Remove punctuation
-    // 2. Split into words
-    // 3. Filter out very short words (but keep length 2+)
-    // 4. Remove common stop words
     const cleanQuery = query.toLowerCase().replace(/[^\w\s]/g, ' ');
     const stopWords = ['the', 'is', 'at', 'which', 'on', 'a', 'an', 'and', 'or', 'but', 'in', 'with', 'to', 'for', 'of'];
     const queryWords = cleanQuery
       .split(/\s+/)
-      .filter((word: string) => word.length >= 2) // FIXED: Changed from > 3 to >= 2
+      .filter((word: string) => word.length >= 2)
       .filter((word: string) => !stopWords.includes(word));
     
     console.log('Original query:', query);
     console.log('Cleaned query:', cleanQuery);
     console.log('Search keywords:', queryWords);
     
-    // IMPROVED: Better search query
-    // Search across category, content, and keywords columns
-    // Use ILIKE for case-insensitive partial matching
     const searchPatterns = queryWords.map((word: string) => `%${word}%`);
     
     const knowledgeResult = await pool.query(`
-      SELECT id, category, content, keywords
-      FROM autoassistpro_knowledge
+      SELECT id, category, content, keywords, priority
+      FROM knowledge_base
       WHERE 
-        category ILIKE ANY($1)
-        OR content ILIKE ANY($1)
-        OR keywords ILIKE ANY($1)
+        client_id = $1
+        AND status = 'published'
+        AND (
+          category ILIKE ANY($2)
+          OR content ILIKE ANY($2)
+          OR keywords ILIKE ANY($2)
+        )
       ORDER BY 
+        priority DESC,
         CASE 
-          WHEN category ILIKE ANY($1) THEN 1
-          WHEN keywords ILIKE ANY($1) THEN 2
+          WHEN category ILIKE ANY($2) THEN 1
+          WHEN keywords ILIKE ANY($2) THEN 2
           ELSE 3
         END,
         id ASC
       LIMIT 5
-    `, [searchPatterns]);
+    `, [clientId, searchPatterns]);
 
-    console.log(`Found ${knowledgeResult.rows.length} relevant knowledge entries`);
+    console.log(`Found ${knowledgeResult.rows.length} relevant knowledge entries for ${companyName}`);
     
     if (knowledgeResult.rows.length > 0) {
       console.log('Knowledge entries found:');
       knowledgeResult.rows.forEach((row, index) => {
-        console.log(`  ${index + 1}. Category: ${row.category}`);
+        console.log(`  ${index + 1}. Category: ${row.category} (Priority: ${row.priority})`);
         console.log(`     Content preview: ${row.content.substring(0, 80)}...`);
-        console.log(`     Keywords: ${row.keywords.substring(0, 80)}...`);
       });
     } else {
       console.log('No specific knowledge found, will use general knowledge');
     }
     console.log('-------------------------------\n');
 
-    // Build context and call Groq API
     console.log('--- Calling Groq AI ---');
     
-    // Build knowledge context from retrieved entries
     const knowledgeContext = knowledgeResult.rows.length > 0
       ? knowledgeResult.rows.map((row: any) => row.content).join('\n\n')
-      : 'No specific knowledge found. Provide a helpful general response about TechEquity Consulting.';
+      : `No specific knowledge found. Provide a helpful general response about ${companyName}.`;
 
-    // IMPROVED: Better system prompt
-    const systemPrompt = `You are an AI assistant for TechEquity Consulting, a professional operations and cybersecurity consulting firm. 
+    const systemPrompt = `You are an AI assistant for ${companyName}, ${companyTagline}.
 
 Your role is to:
 - Answer questions accurately using the knowledge base provided
 - Always use "our team" language, never first-person
 - Be professional, helpful, and concise
 - When relevant, encourage discovery calls to discuss specific needs
-- Focus on the value TechEquity provides to clients
+- Focus on the value ${companyName} provides to clients
 
 KNOWLEDGE BASE:
 ${knowledgeContext}
@@ -134,9 +145,8 @@ IMPORTANT: Base your response on the knowledge base above. If the information is
     console.log('System prompt length:', systemPrompt.length);
     console.log('User query:', userPrompt);
 
-    // Call Groq API with error handling and timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     try {
       const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -152,7 +162,7 @@ IMPORTANT: Base your response on the knowledge base above. If the information is
             { role: 'user', content: userPrompt }
           ],
           temperature: 0.7,
-          max_tokens: 1500, // INCREASED from 500 to match n8n's longer responses
+          max_tokens: 1500,
         }),
         signal: controller.signal,
       });
@@ -163,7 +173,6 @@ IMPORTANT: Base your response on the knowledge base above. If the information is
         const errorText = await groqResponse.text();
         console.error('Groq API error response:', errorText);
         
-        // Handle specific error codes
         if (groqResponse.status === 429) {
           return NextResponse.json(
             { success: false, error: 'AI service is busy. Please try again in a moment.' },
@@ -195,6 +204,7 @@ IMPORTANT: Base your response on the knowledge base above. If the information is
         response: aiResponse,
         metadata: {
           clientId,
+          companyName,
           sessionId,
           knowledgeEntriesFound: knowledgeResult.rows.length,
           tokensUsed: groqData.usage,
@@ -213,7 +223,7 @@ IMPORTANT: Base your response on the knowledge base above. If the information is
         );
       }
       
-      throw fetchError; // Re-throw to be caught by outer catch
+      throw fetchError;
     }
 
   } catch (error) {
@@ -223,7 +233,6 @@ IMPORTANT: Base your response on the knowledge base above. If the information is
     console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
     console.error('============================\n');
 
-    // Return user-friendly error message
     return NextResponse.json(
       { 
         success: false, 

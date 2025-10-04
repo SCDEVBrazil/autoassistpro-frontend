@@ -6,7 +6,7 @@ import { getPool } from '@/lib/database';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const clientId = searchParams.get('client') || 'techequity';
+    const clientId = searchParams.get('client') || process.env.NEXT_PUBLIC_DEFAULT_CLIENT_ID || 'client_techequity_001';
 
     const pool = getPool();
     
@@ -20,10 +20,10 @@ export async function GET(request: NextRequest) {
     if (result.rows.length === 0) {
       // Create default settings if they don't exist
       const defaultSettings = {
-        duration: clientId === 'techequity' ? 45 : 30,
+        duration: 45,
         bufferTime: 15,
-        advanceNotice: clientId === 'techequity' ? 24 : 2,
-        maxBookingWindow: clientId === 'techequity' ? 60 : 30
+        advanceNotice: 24,
+        maxBookingWindow: 60
       };
 
       await pool.query(`

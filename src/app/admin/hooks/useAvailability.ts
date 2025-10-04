@@ -41,7 +41,7 @@ export const useAvailability = (setNotification: (notification: Notification | n
 
           // Device-specific query parameters
           const queryParams = new URLSearchParams({
-            client: 'techequity',
+            client: process.env.NEXT_PUBLIC_DEFAULT_CLIENT_ID || 'client_techequity_001',
             deviceType: deviceType,
             isTouchDevice: isTouchDevice.toString(),
             ...(simplifyData && { simplified: 'true' })
@@ -373,7 +373,7 @@ export const useAvailability = (setNotification: (notification: Notification | n
     try {
       // Device-specific query limits for performance
       const queryParams = new URLSearchParams({
-        client: 'techequity',
+        client: process.env.NEXT_PUBLIC_DEFAULT_CLIENT_ID || 'client_techequity_001',
         deviceType: deviceType,
         ...(deviceType === 'mobile' && { limit: '20' }), // Limit on mobile
         ...(deviceType === 'tablet' && { limit: '50' })  // Moderate limit on tablet

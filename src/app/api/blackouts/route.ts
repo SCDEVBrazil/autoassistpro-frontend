@@ -7,7 +7,7 @@ import { getPool } from '@/lib/database';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const clientId = searchParams.get('client') || 'techequity';
+    const clientId = searchParams.get('client') || process.env.NEXT_PUBLIC_DEFAULT_CLIENT_ID || 'client_techequity_001';
 
     const pool = getPool();
     
@@ -115,7 +115,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const blackoutId = searchParams.get('id');
-    const clientId = searchParams.get('client') || 'techequity';
+    const clientId = searchParams.get('client') || process.env.NEXT_PUBLIC_DEFAULT_CLIENT_ID || 'client_techequity_001';
 
     if (!blackoutId) {
       return NextResponse.json(

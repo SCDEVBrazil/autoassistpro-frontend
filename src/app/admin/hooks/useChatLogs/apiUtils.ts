@@ -22,10 +22,10 @@ export const buildApiUrl = (
   const config = CHAT_LOGS_CONFIG[deviceType];
   
   if (sessionId) {
-    return `/api/chat-logs?client=techequity&sessionId=${sessionId}&limit=${config.sessionLimit}&deviceType=${deviceType}`;
+    return `/api/chat-logs?client=${process.env.NEXT_PUBLIC_DEFAULT_CLIENT_ID || 'client_techequity_001'}&sessionId=${sessionId}&limit=${config.sessionLimit}&deviceType=${deviceType}`;
   } else {
     const queryParams = new URLSearchParams({
-      client: 'techequity',
+      client: process.env.NEXT_PUBLIC_DEFAULT_CLIENT_ID || 'client_techequity_001',
       limit: config.limit.toString(),
       deviceType: deviceType,
       isTouchDevice: isTouchDevice.toString()
@@ -254,7 +254,7 @@ export const bulkDeleteConversationsApi = async (params: BulkDeleteParams): Prom
       },
       body: JSON.stringify({
         sessionIds: sessionIds,
-        clientId: 'techequity',
+        clientId: process.env.NEXT_PUBLIC_DEFAULT_CLIENT_ID || 'client_techequity_001',
         deviceType: deviceType
       })
     });

@@ -7,7 +7,7 @@ import { getPool } from '@/lib/database';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const clientId = searchParams.get('client') || 'techequity';
+    const clientId = searchParams.get('client') || process.env.NEXT_PUBLIC_DEFAULT_CLIENT_ID || 'client_techequity_001';
     const startDate = searchParams.get('startDate') || new Date().toISOString().split('T')[0];
     const days = parseInt(searchParams.get('days') || '14');
 

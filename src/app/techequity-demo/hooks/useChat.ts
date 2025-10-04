@@ -172,7 +172,7 @@ export const useChat = () => {
     
     try {
       const logPayload = {
-        clientId: 'techequity',
+        clientId: process.env.NEXT_PUBLIC_DEFAULT_CLIENT_ID || 'client_techequity_001',
         sessionId: sessionId,
         messageType,
         content,
@@ -408,7 +408,7 @@ export const useChat = () => {
       
       // Prepare request payload
       const requestPayload = {
-        clientId: 'techequity',
+        clientId: process.env.NEXT_PUBLIC_DEFAULT_CLIENT_ID || 'client_techequity_001',
         query: messageContent,
         sessionId: sessionId,
         userName: userName || `${deviceType.charAt(0).toUpperCase() + deviceType.slice(1)} User`,

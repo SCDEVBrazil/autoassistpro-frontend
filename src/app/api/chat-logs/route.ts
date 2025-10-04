@@ -7,7 +7,7 @@ import { getPool } from '@/lib/database';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const clientId = searchParams.get('client') || 'techequity';
+    const clientId = searchParams.get('client') || process.env.NEXT_PUBLIC_DEFAULT_CLIENT_ID || 'client_techequity_001';
     const sessionId = searchParams.get('sessionId');
     const limit = parseInt(searchParams.get('limit') || '100');
 
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const clientId = searchParams.get('client') || 'techequity';
+    const clientId = searchParams.get('client') || process.env.NEXT_PUBLIC_DEFAULT_CLIENT_ID || 'client_techequity_001';
     const sessionId = searchParams.get('sessionId');
 
     console.log('DELETE chat logs request:', { clientId, sessionId });
